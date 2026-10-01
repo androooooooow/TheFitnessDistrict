@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Target, TrendingUp, Scale, CalendarDays, Pencil, Dumbbell } from 'lucide-react';
 import { useGym } from '../context/GymContext';
 import {
@@ -16,7 +17,8 @@ import { ProgressModal, GoalModal } from '../components/Forms';
 
 export default function Progress({ user = false }) {
   const { state, userId } = useGym();
-  const [selected, setSelected] = useState(user ? userId : state.members[0]?.id);
+  const [params, setParams] = useSearchParams();
+  const selected = user ? userId : params.get('member') || state.members[0]?.id;
   const [metric, setMetric] = useState('Weight');
   const [period, setPeriod] = useState('all');
   const [modal, setModal] = useState(false);
@@ -51,11 +53,11 @@ export default function Progress({ user = false }) {
   return (
     <>
       <PageTitle
-        title={user ? 'Small steps. Real progress.' : 'Progress, beyond the check-in'}
+        title={user ? 'Small steps. Real progress.' : 'Member progress'}
         description={
           user
             ? 'A space to notice how far you’ve come and where you want to go.'
-            : 'Track the measurements and milestones that matter to each member.'
+            : 'View each member’s measurements, goals, and journal, including entries they recorded themselves.'
         }
         action={
           <Button onClick={() => setModal(true)}>
@@ -71,18 +73,23 @@ export default function Progress({ user = false }) {
           <p className="mt-1 text-xs text-muted">{member.code} · A journey worth tracking</p>
         </div>
         {!user && (
-          <select
-            className="input w-auto"
-            aria-label="Select progress member"
-            value={member.id}
-            onChange={(e) => setSelected(e.target.value)}
-          >
-            {state.members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <label className="block w-full sm:w-auto">
+            <span className="mb-1.5 block text-[10px] font-semibold text-muted">
+              View member progress
+            </span>
+            <select
+              className="input w-full sm:w-auto"
+              aria-label="Select progress member"
+              value={member.id}
+              onChange={(e) => setParams({ member: e.target.value }, { replace: true })}
+            >
+              {state.members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {m.code}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <div className="flex rounded-lg bg-canvas p-1">
           {['Weight', 'Bench press', 'Waist'].map((m) => (

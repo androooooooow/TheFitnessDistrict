@@ -10,6 +10,8 @@ import {
   addProgress,
   editProgress,
   localDate,
+  addMonths,
+  rateFor,
 } from '../src/lib/domain.js';
 import { csvCell } from '../src/lib/export.js';
 
@@ -77,13 +79,62 @@ test('pending and suspended members cannot check in', () => {
   assert.throws(() => checkIn(makeState({ access: null }), 'm1', now), /pending/);
   assert.throws(() => checkIn(makeState({ status: 'disabled' }), 'm1', now), /suspended/);
 });
-test('renewal preserves previous access and gives a fresh allowance', () => {
+test('renewal preserves previous access and records the selected membership rate', () => {
   const state = makeState();
-  const next = activateAccess(state, 'm1', 'sessions', '2026-10-01').state;
-  assert.equal(next.members[0].access.sessions, 10);
-  assert.equal(next.members[0].access.end, '2026-12-30');
+  const next = activateAccess(state, 'm1', 'quarterly', '2026-10-01', {
+    rateCategory: 'student',
+  }).state;
+  assert.equal(next.members[0].access.sessions, null);
+  assert.equal(next.members[0].access.end, '2027-01-01');
+  assert.equal(next.members[0].access.listedRate, 3500);
+  assert.equal(next.members[0].access.rateCategory, 'student');
   assert.deepEqual(next.members[0].history, [state.members[0].access]);
   assert.notEqual(next.members[0].access.id, 'a1');
+});
+test('calendar month durations clamp month ends, including leap years', () => {
+  assert.equal(addMonths('2026-01-31', 1), '2026-02-28');
+  assert.equal(addMonths('2028-01-31', 1), '2028-02-29');
+  assert.equal(addMonths('2028-02-29', 12), '2029-02-28');
+  assert.equal(addMonths('2026-10-01', 6), '2027-04-01');
+});
+test('catalog rates match the supplied student and non-student poster', () => {
+  for (const [id, student, nonStudent] of [
+    ['monthly', 1500, 2000],
+    ['quarterly', 3500, 5000],
+    ['half-year', 6500, 9500],
+    ['annual', 11000, 18000],
+  ]) {
+    assert.equal(rateFor(id, 'student'), student);
+    assert.equal(rateFor(id, 'nonStudent'), nonStudent);
+  }
+  assert.equal(rateFor('day', 'student', 'morning'), 100);
+  assert.equal(rateFor('day', 'nonStudent', 'morning'), 150);
+  assert.equal(rateFor('day', 'student', 'afternoon'), 150);
+  assert.equal(rateFor('day', 'nonStudent', 'afternoon'), 200);
+  assert.throws(() => rateFor('day', 'student', 'invalid'), /entry time/);
+  assert.throws(() => rateFor('annual', 'invalid'), /category/);
+  assert.throws(
+    () => activateAccess(makeState(), 'm1', 'sessions', '2026-10-01'),
+    /valid member and plan/,
+  );
+});
+test('daily pass respects Manila entry time, noon boundary, and single admission', () => {
+  const morning = activateAccess(makeState(), 'm1', 'day', '2026-10-01', {
+    rateCategory: 'student',
+    timeSlot: 'morning',
+  }).state;
+  assert.equal(morning.members[0].access.end, '2026-10-02');
+  assert.throws(() => checkIn(morning, 'm1', '2026-10-01T06:59:00+08:00'), /allows check-in/);
+  assert.throws(() => checkIn(morning, 'm1', '2026-10-01T12:00:00+08:00'), /allows check-in/);
+  const checked = checkIn(morning, 'm1', '2026-10-01T11:59:00+08:00').state;
+  const out = checkOut(checked, checked.visits[0].id, '2026-10-01T13:00:00+08:00').state;
+  assert.throws(() => checkIn(out, 'm1', '2026-10-01T13:01:00+08:00'), /exhausted/);
+  const afternoon = activateAccess(makeState(), 'm1', 'day', '2026-10-01', {
+    rateCategory: 'nonStudent',
+    timeSlot: 'afternoon',
+  }).state;
+  assert.equal(checkIn(afternoon, 'm1', '2026-10-01T04:00:00Z').state.visits.length, 1);
+  assert.throws(() => checkIn(afternoon, 'm1', '2026-10-01T11:59:00+08:00'), /allows check-in/);
 });
 test('resuming access preserves dates and does not credit more sessions', () => {
   const suspended = setAccessStatus(makeState(), 'm1', 'suspended').state;

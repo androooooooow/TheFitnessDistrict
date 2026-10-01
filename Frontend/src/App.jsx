@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, Outlet } from 'react-router-dom';
 import { GymProvider } from './context/GymContext';
 import Layout from './components/Layout';
 import Overview from './pages/admin/Overview';
@@ -11,6 +11,24 @@ import Progress from './pages/Progress';
 import { UserOverview, UserMembership, UserProfile } from './pages/user/UserPages';
 import Auth from './pages/auth/Auth';
 import { Brand } from './components/UI';
+import { useGym } from './context/GymContext';
+function RequireAccount({ children }) {
+  const { authUser, authLoading, previewEnabled } = useGym();
+  if (authLoading)
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted">
+        Loading your account…
+      </div>
+    );
+  if (!authUser && !previewEnabled) return <Navigate to="/login" replace />;
+  return children;
+}
+function RequireRole({ role, children }) {
+  const { authUser, previewEnabled } = useGym();
+  if (!previewEnabled && authUser?.role !== role)
+    return <Navigate to={authUser?.role === 'admin' ? '/admin' : '/user'} replace />;
+  return children;
+}
 
 export default function App() {
   return (
@@ -24,19 +42,41 @@ export default function App() {
           <Route path="/login" element={<Auth key="login" />} />
           <Route path="/register" element={<Auth key="register" />} />
           <Route path="/verify-email" element={<Auth key="verify" />} />
-          <Route element={<Layout />}>
-            <Route path="/admin" element={<Overview />} />
-            <Route path="/admin/members" element={<Members />} />
-            <Route path="/admin/attendance" element={<Attendance />} />
-            <Route path="/admin/memberships" element={<Memberships />} />
-            <Route path="/admin/progress" element={<Progress />} />
-            <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/settings" element={<Settings />} />
-            <Route path="/user" element={<UserOverview />} />
-            <Route path="/user/membership" element={<UserMembership />} />
-            <Route path="/user/attendance" element={<Attendance user />} />
-            <Route path="/user/progress" element={<Progress user />} />
-            <Route path="/user/profile" element={<UserProfile />} />
+          <Route
+            element={
+              <RequireAccount>
+                <Layout />
+              </RequireAccount>
+            }
+          >
+            <Route
+              element={
+                <RequireRole role="admin">
+                  <Outlet />
+                </RequireRole>
+              }
+            >
+              <Route path="/admin" element={<Overview />} />
+              <Route path="/admin/members" element={<Members />} />
+              <Route path="/admin/attendance" element={<Attendance />} />
+              <Route path="/admin/memberships" element={<Memberships />} />
+              <Route path="/admin/progress" element={<Progress />} />
+              <Route path="/admin/reports" element={<Reports />} />
+              <Route path="/admin/settings" element={<Settings />} />
+            </Route>
+            <Route
+              element={
+                <RequireRole role="user">
+                  <Outlet />
+                </RequireRole>
+              }
+            >
+              <Route path="/user" element={<UserOverview />} />
+              <Route path="/user/membership" element={<UserMembership />} />
+              <Route path="/user/attendance" element={<Attendance user />} />
+              <Route path="/user/progress" element={<Progress user />} />
+              <Route path="/user/profile" element={<UserProfile />} />
+            </Route>
           </Route>
           <Route
             path="*"

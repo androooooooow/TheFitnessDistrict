@@ -1,6 +1,6 @@
 # Backend folder architecture — Node.js / Express / PostgreSQL
 
-Use layered routes, controllers, services, models, and middleware. The tree below is the proposed implementation layout; only documentation exists at this stage. Sequelize provides the ORM/data model and versioned migrations. Keep application modules in one backend deployment.
+Use layered routes, controllers, services, models, and middleware. Authentication and the own-profile API are now implemented; see [setup, actual endpoints, and test commands](README.md). The larger tree below remains the planned layout for gym operations and Google OAuth. Current implemented entry points include `auth.routes.js`, `me.routes.js`, `auth.controller.js`, `auth.service.js`, `mail.service.js`, `counter.service.js`, `models/index.js`, shared middleware/validators, and `migrations/001-auth.js`. Sequelize provides the ORM/data model and versioned migrations. Keep application modules in one backend deployment.
 
 ```text
 Backend/
@@ -124,17 +124,17 @@ This design uses JavaScript modules; configure the migration runner to match the
 
 ## Responsibilities and dependency direction
 
-| Layer | Responsibility |
-| --- | --- |
-| Routes | Declare method/path and attach limiter, authentication, role, ownership, and validation middleware |
-| Controllers | Read validated request/context, call services, and return HTTP responses |
-| Services | Implement business decisions and own transaction boundaries across models |
-| Models | Define tables/associations and perform database operations with the provided transaction |
-| Middleware | Handle shared HTTP/auth/security concerns |
-| Validators | Define allowed fields, types, lengths, IDs, ranges, and date rules |
-| Migrations | Create/change schema and database-enforced constraints |
-| Utilities/adapters | Provide reusable cryptography, logging, and mail/provider functions |
-| Tests/configs | Verify domain/security behavior and API scans |
+| Layer              | Responsibility                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| Routes             | Declare method/path and attach limiter, authentication, role, ownership, and validation middleware |
+| Controllers        | Read validated request/context, call services, and return HTTP responses                           |
+| Services           | Implement business decisions and own transaction boundaries across models                          |
+| Models             | Define tables/associations and perform database operations with the provided transaction           |
+| Middleware         | Handle shared HTTP/auth/security concerns                                                          |
+| Validators         | Define allowed fields, types, lengths, IDs, ranges, and date rules                                 |
+| Migrations         | Create/change schema and database-enforced constraints                                             |
+| Utilities/adapters | Provide reusable cryptography, logging, and mail/provider functions                                |
+| Tests/configs      | Verify domain/security behavior and API scans                                                      |
 
 The usual dependency direction is `routes -> middleware -> controllers -> services -> models -> PostgreSQL`. Services never depend on Express request/response objects. Controllers do not perform direct database writes or decide whether a membership is valid. Models do not send email or choose a user's permissions.
 

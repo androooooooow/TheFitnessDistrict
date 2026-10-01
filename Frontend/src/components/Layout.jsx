@@ -44,7 +44,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const admin = location.pathname.startsWith('/admin');
-  const { state, userId } = useGym();
+  const { state, userId, authUser, previewEnabled, logoutAccount, notify } = useGym();
   const member = state.members.find((m) => m.id === userId) || state.members[0];
   const [menu, setMenu] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -149,9 +149,19 @@ export default function Layout() {
             <HelpCircle size={17} />
             <span>Help & support</span>
           </button>
-          <button onClick={() => go('/login')} className="nav-item w-full">
+          <button
+            onClick={async () => {
+              try {
+                if (authUser) await logoutAccount();
+                go('/login');
+              } catch (error) {
+                notify(error.message, true);
+              }
+            }}
+            className="nav-item w-full"
+          >
             <LogOut size={17} />
-            <span>Sign out of preview</span>
+            <span>{previewEnabled ? 'Sign out of preview' : 'Sign out'}</span>
           </button>
           <div className="mt-4 border-t border-line px-2 pt-4 text-[9px] text-muted">
             © {new Date().getFullYear()} The Fit District
@@ -197,15 +207,17 @@ export default function Layout() {
                 </kbd>
               </form>
             )}
-            <select
-              aria-label="Preview role"
-              value={admin ? 'admin' : 'user'}
-              onChange={(e) => go(e.target.value === 'admin' ? '/admin' : '/user')}
-              className="rounded-md border border-line bg-white px-2 py-1.5 text-[10px] font-medium text-muted"
-            >
-              <option value="admin">Admin preview</option>
-              <option value="user">User preview</option>
-            </select>
+            {previewEnabled && (
+              <select
+                aria-label="Preview role"
+                value={admin ? 'admin' : 'user'}
+                onChange={(e) => go(e.target.value === 'admin' ? '/admin' : '/user')}
+                className="rounded-md border border-line bg-white px-2 py-1.5 text-[10px] font-medium text-muted"
+              >
+                <option value="admin">Admin preview</option>
+                <option value="user">User preview</option>
+              </select>
+            )}
             <div className="relative">
               <button
                 aria-label="Notifications"
@@ -214,7 +226,7 @@ export default function Layout() {
                 className="icon-btn relative"
               >
                 <Bell size={18} />
-                {(admin ? pending.length : accessStatus(member) !== 'Active') > 0 && (
+                {(admin ? pending.length : member && accessStatus(member) !== 'Active') > 0 && (
                   <span className="absolute right-2 top-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                 )}
               </button>

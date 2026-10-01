@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowRight, Check, CalendarDays } from 'lucide-react';
 import { Modal, Field, Button, dateLabel } from './UI';
 import { useGym } from '../context/GymContext';
-import { plans, localDate, addDays } from '../lib/domain';
+import { currentPlans, dailyRates, localDate, accessEnd, rateFor, peso } from '../lib/domain';
 
 export function MemberCreate({ onClose }) {
   const { createMember } = useGym();
@@ -70,9 +70,24 @@ export function MemberCreate({ onClose }) {
 }
 export function AccessModal({ member, onClose }) {
   const { activate } = useGym();
-  const [planId, setPlanId] = useState(member.access?.planId || 'monthly');
+  const [planId, setPlanId] = useState(
+    currentPlans.some((p) => p.id === member.access?.planId) ? member.access.planId : 'monthly',
+  );
+  const [rateCategory, setRateCategory] = useState(member.access?.rateCategory || 'nonStudent');
+  const [timeSlot, setTimeSlot] = useState(
+    member.access?.timeSlot ||
+      (Number(
+        new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Manila',
+          hour: '2-digit',
+          hourCycle: 'h23',
+        }).format(new Date()),
+      ) < 12
+        ? 'morning'
+        : 'afternoon'),
+  );
   const [confirmed, setConfirmed] = useState(false);
-  const plan = plans.find((p) => p.id === planId);
+  const plan = currentPlans.find((p) => p.id === planId);
   const start = localDate();
   return (
     <Modal
@@ -84,32 +99,89 @@ export function AccessModal({ member, onClose }) {
         className="space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
-          if (confirmed && activate(member.id, planId, start)) onClose();
+          if (confirmed && activate(member.id, planId, start, { rateCategory, timeSlot }))
+            onClose();
         }}
       >
         <Field label="Select a plan">
-          <select className="input" value={planId} onChange={(e) => setPlanId(e.target.value)}>
-            {plans.map((p) => (
+          <select
+            aria-label="Select a plan"
+            className="input"
+            value={planId}
+            onChange={(e) => {
+              setPlanId(e.target.value);
+              setConfirmed(false);
+            }}
+          >
+            {currentPlans.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </select>
         </Field>
+        <Field label="Rate category">
+          <select
+            aria-label="Rate category"
+            className="input"
+            value={rateCategory}
+            onChange={(e) => {
+              setRateCategory(e.target.value);
+              setConfirmed(false);
+            }}
+          >
+            <option value="student">Student</option>
+            <option value="nonStudent">Non-student</option>
+          </select>
+        </Field>
+        {plan.type === 'day' && (
+          <Field label="Daily entry time">
+            <select
+              aria-label="Daily entry time"
+              className="input"
+              value={timeSlot}
+              onChange={(e) => {
+                setTimeSlot(e.target.value);
+                setConfirmed(false);
+              }}
+            >
+              {dailyRates.map((slot) => (
+                <option key={slot.id} value={slot.id}>
+                  {slot.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="mb-3 text-lg font-bold">
+            {peso(rateFor(planId, rateCategory, timeSlot))}{' '}
+            <span className="text-xs font-normal text-muted">
+              counter rate · {rateCategory === 'student' ? 'Student' : 'Non-student'}
+            </span>
+          </p>
           <div className="flex items-center gap-2 text-xs font-semibold">
             <CalendarDays size={16} className="text-brand-strong" />
-            {dateLabel(start)} → {dateLabel(addDays(start, plan.days))}
+            {dateLabel(start)} → {dateLabel(accessEnd(start, plan))}
           </div>
           <p className="mt-2 text-xs text-muted">
             {plan.sessions === null
               ? 'Unlimited gym visits'
               : `${plan.sessions} ${plan.sessions === 1 ? 'visit' : 'visits'}`}{' '}
-            • {plan.days}-day validity
+            • {plan.months ? `${plan.months}-month validity` : 'Same-day validity'}
           </p>
           <p className="mt-2 text-[10px] leading-5 text-muted">
             Access starts today. The end date is exclusive; day passes allow one admission.
           </p>
+          {plan.type === 'day' && (
+            <p className="mt-2 text-xs text-muted">
+              Check-in: {dailyRates.find((slot) => slot.id === timeSlot).name}. Exactly 12 noon uses
+              the afternoon rate.
+            </p>
+          )}
+          {plan.features.includes('Free T-shirt') && (
+            <p className="mt-2 text-xs text-brand-strong">Includes a free T-shirt.</p>
+          )}
         </div>
         {member.access && (
           <p className="text-xs leading-5 text-muted">

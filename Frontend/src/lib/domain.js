@@ -20,20 +20,70 @@ function isValidDate(value) {
   const parsed = new Date(`${value}T12:00:00+08:00`);
   return !Number.isNaN(parsed.getTime()) && localDate(parsed) === value;
 }
+export function addMonths(date, months) {
+  const [year, month, day] = date.split('-').map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+}
+export const peso = (value) =>
+  new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(value);
+export const dailyRates = [
+  {
+    id: 'morning',
+    name: '7 AM – before 12 noon',
+    student: 100,
+    nonStudent: 150,
+    startMinute: 420,
+    endMinute: 720,
+  },
+  {
+    id: 'afternoon',
+    name: '12 noon onwards',
+    student: 150,
+    nonStudent: 200,
+    startMinute: 720,
+    endMinute: 1440,
+  },
+];
 export const plans = [
   {
     id: 'monthly',
-    name: 'District Monthly',
-    short: 'Monthly',
+    name: '1 Month Membership',
+    short: '1 month',
     type: 'membership',
-    days: 30,
+    months: 1,
     sessions: null,
-    description: 'Your everyday commitment. Unlimited gym visits for 30 days.',
-    features: ['Unlimited visits', '30-day access', 'Progress tracking'],
+    rates: { student: 1500, nonStudent: 2000 },
+    description: 'Unlimited gym visits for one calendar month.',
+    features: ['Unlimited visits', 'Progress tracking'],
     color: 'orange',
   },
+  ...[
+    { id: 'quarterly', months: 3, student: 3500, nonStudent: 5000 },
+    { id: 'half-year', months: 6, student: 6500, nonStudent: 9500 },
+    { id: 'annual', months: 12, student: 11000, nonStudent: 18000 },
+  ].map(({ id, months, student, nonStudent }) => ({
+    id,
+    months,
+    name: `${months} Months Membership`,
+    short: `${months} months`,
+    type: 'membership',
+    sessions: null,
+    rates: { student, nonStudent },
+    description: `Unlimited gym visits for ${months} calendar months.`,
+    features: ['Unlimited visits', 'Free T-shirt', 'Progress tracking'],
+    color: 'orange',
+  })),
   {
     id: 'sessions',
+    legacy: true,
     name: '10-Session Pack',
     short: 'Session pack',
     type: 'sessions',
@@ -45,16 +95,31 @@ export const plans = [
   },
   {
     id: 'day',
-    name: 'Day Pass',
-    short: 'Day pass',
+    name: 'Daily / Per Session',
+    short: 'Per session',
     type: 'day',
     days: 1,
     sessions: 1,
-    description: 'One visit. A fresh start. Make today your day.',
+    description:
+      'One admission on the selected day. Rates depend on entry time and student status.',
     features: ['One gym visit', 'Same-day validity', 'Full gym access'],
     color: 'purple',
   },
 ];
+export const currentPlans = plans.filter((p) => !p.legacy);
+export const accessEnd = (start, plan) =>
+  plan.months ? addMonths(start, plan.months) : addDays(start, plan.days);
+export function rateFor(planId, category, timeSlot = 'morning') {
+  const plan = currentPlans.find((p) => p.id === planId);
+  if (!plan || !['student', 'nonStudent'].includes(category))
+    throw new Error('Choose a valid plan and rate category.');
+  if (plan.type === 'day') {
+    const slot = dailyRates.find((r) => r.id === timeSlot);
+    if (!slot) throw new Error('Choose a valid daily entry time.');
+    return slot[category];
+  }
+  return plan.rates[category];
+}
 export function accessStatus(member, now = new Date()) {
   if (member.status === 'disabled') return 'Suspended';
   const a = member.access;
@@ -78,6 +143,22 @@ export function checkIn(state, memberId, now = new Date().toISOString()) {
     throw new Error(
       `Cannot check in: access is ${status.toLowerCase()}. Ask the admin to update this membership.`,
     );
+  if (member.access.timeSlot) {
+    const slot = dailyRates.find((r) => r.id === member.access.timeSlot);
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(now));
+    const minutes =
+      Number(parts.find((p) => p.type === 'hour').value) * 60 +
+      Number(parts.find((p) => p.type === 'minute').value);
+    if (!slot || minutes < slot.startMinute || minutes >= slot.endMinute)
+      throw new Error(
+        `This daily pass allows check-in ${slot?.name || 'during its selected entry time'}. Ask the admin to update the pass.`,
+      );
+  }
   const members = state.members.map((m) =>
     m.id === memberId
       ? {
@@ -108,17 +189,23 @@ export function checkOut(state, visitId, now = new Date().toISOString()) {
     message: 'Checked out. See you next time!',
   };
 }
-export function activateAccess(state, memberId, planId, start = localDate()) {
+export function activateAccess(state, memberId, planId, start = localDate(), options = {}) {
   const member = state.members.find((m) => m.id === memberId);
-  const plan = plans.find((p) => p.id === planId);
+  const plan = currentPlans.find((p) => p.id === planId);
   if (!member || !plan) throw new Error('Choose a valid member and plan.');
   if (!isValidDate(start)) throw new Error('Choose a valid start date.');
+  const rateCategory = options.rateCategory || 'nonStudent';
+  const timeSlot = plan.type === 'day' ? options.timeSlot || 'morning' : null;
+  const listedRate = rateFor(planId, rateCategory, timeSlot);
   const access = {
     id: uid(),
     planId,
     status: 'active',
     start,
-    end: addDays(start, plan.days),
+    end: accessEnd(start, plan),
+    rateCategory,
+    timeSlot,
+    listedRate,
     sessions: plan.sessions,
     totalSessions: plan.sessions,
   };

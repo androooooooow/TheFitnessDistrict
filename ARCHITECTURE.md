@@ -4,7 +4,7 @@
 
 Start with one gym location. Use a responsive web application with exactly two roles, `admin` and `user`, one backend application, and one relational database. The admin manages gym operations; a user is a member accessing their own records. This is a modular monolith: each business area owns its logic, but all modules run together. It keeps deployment and transactional updates simple for the initial system.
 
-The selected stack is **PERN: PostgreSQL, Express, React, and Node.js**. The React frontend is implemented as a local interactive preview in `Frontend`, using Vite and Tailwind CSS. The backend remains a specification. See [frontend setup and preview limitations](Frontend/README.md).
+The selected stack is **PERN: PostgreSQL, Express, React, and Node.js**. React uses Vite and Tailwind CSS. Email/password signup, email-code verification before account creation, automatic sign-in, login/logout, sessions, and the member's own editable profile with BMI are implemented in `Backend` and connected to the frontend. Gym operations and Google OAuth remain planned backend modules. See [backend setup](Backend/README.md) and [frontend setup and preview limitations](Frontend/README.md).
 
 | Layer | Technology and responsibility |
 | --- | --- |

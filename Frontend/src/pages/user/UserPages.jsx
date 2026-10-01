@@ -14,7 +14,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useGym } from '../../context/GymContext';
-import { accessStatus, plans, localDate, addDays } from '../../lib/domain';
+import { accessStatus, plans, localDate, addDays, dailyRates, peso } from '../../lib/domain';
 import {
   PageTitle,
   Panel,
@@ -82,7 +82,7 @@ export function UserOverview() {
   const weight = state.progress
     .filter((p) => p.memberId === member.id && p.metric === 'Weight')
     .sort((a, b) => a.date.localeCompare(b.date));
-  const plan = plans.find((p) => p.id === member.access?.planId);
+  const plan = plans.find((p) => p.id === (member.access?.planId || member.requestedMembership));
   return (
     <>
       <PageTitle
@@ -196,7 +196,9 @@ export function UserOverview() {
             <p className="mt-2 text-xs leading-6 text-muted">
               {member.access
                 ? `Valid until ${dateLabel(member.access.end)} (exclusive).`
-                : 'Visit the gym counter to choose a membership or session pass.'}
+                : plan
+                  ? 'Your preferred plan is saved. Pay at the counter; the admin will activate your access.'
+                  : 'Visit the gym counter to choose a membership or session pass.'}
             </p>
             {member.access?.sessions !== null && member.access && (
               <p className="mt-3 text-sm font-semibold text-brand-strong">
@@ -220,7 +222,7 @@ export function UserOverview() {
 export function UserMembership() {
   const { state, member } = useMember();
   if (!member) return null;
-  const plan = plans.find((p) => p.id === member.access?.planId);
+  const plan = plans.find((p) => p.id === (member.access?.planId || member.requestedMembership));
   return (
     <>
       <PageTitle
@@ -239,12 +241,29 @@ export function UserMembership() {
             <h2 className="mt-5 text-2xl font-bold tracking-tight">
               {plan?.name || 'A fresh start awaits'}
             </h2>
+            {!member.access && plan && (
+              <p className="mt-2 text-xs font-semibold text-brand-strong">
+                Preferred membership ·{' '}
+                {member.rateCategory === 'student' ? 'Student' : 'Non-student'}
+              </p>
+            )}
             <p className="mt-2 text-xs leading-6 text-muted">
               {plan?.description ||
                 'Choose a plan at the counter. The admin will activate your access afterward.'}
             </p>
             {member.access && (
               <>
+                {member.access.rateCategory && (
+                  <p className="mt-4 text-xs text-muted">
+                    {member.access.rateCategory === 'student' ? 'Student' : 'Non-student'}
+                    {member.access.listedRate !== undefined
+                      ? ` · ${peso(member.access.listedRate)} counter rate`
+                      : ''}
+                    {member.access.timeSlot
+                      ? ` · Entry: ${dailyRates.find((r) => r.id === member.access.timeSlot)?.name}`
+                      : ''}
+                  </p>
+                )}
                 <div className="mt-6 grid grid-cols-2 gap-4 border-y border-line py-5">
                   <div>
                     <p className="text-[10px] text-muted">Starts on</p>
@@ -277,7 +296,9 @@ export function UserMembership() {
               </>
             )}
             <div className="mt-6 rounded-xl bg-canvas p-4">
-              <p className="text-xs font-bold">Ready to renew?</p>
+              <p className="text-xs font-bold">
+                {member.access ? 'Ready to renew?' : 'Activate at the counter'}
+              </p>
               <p className="mt-2 text-xs leading-6 text-muted">
                 Pay at the gym counter and ask the admin to update your membership. Membership
                 changes are managed by the admin.
@@ -319,9 +340,25 @@ export function UserMembership() {
   );
 }
 export function UserProfile() {
-  const { member, updateMember } = useMember();
-  const [name, setName] = useState(member?.name || '');
-  const [phone, setPhone] = useState(member?.phone || '');
+  const { member, updateMember, authUser } = useMember();
+  const [form, setForm] = useState({
+    fullName: member?.name || '',
+    birthday: member?.birthday || '',
+    sex: member?.sex || '',
+    address: member?.address || '',
+    phone: member?.phone || '',
+    weight: member?.weight || '',
+    height: member?.height || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const change = (e) => {
+    const { name, value } = e.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  };
+  const currentBmi =
+    Number(form.weight) > 0 && Number(form.height) > 0
+      ? Number((Number(form.weight) / (Number(form.height) / 100) ** 2).toFixed(1))
+      : null;
   if (!member) return null;
   return (
     <>
@@ -342,16 +379,32 @@ export function UserProfile() {
           </div>
           <form
             className="space-y-5"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              updateMember(member.id, { name: name.trim(), phone });
+              const submitted = Object.fromEntries(new FormData(e.currentTarget));
+              const values = {
+                ...submitted,
+                fullName: submitted.fullName.trim(),
+                weight: Number(submitted.weight),
+                height: Number(submitted.height),
+              };
+              setSaving(true);
+              try {
+                await updateMember(
+                  member.id,
+                  authUser ? values : { ...values, name: values.fullName },
+                );
+              } finally {
+                setSaving(false);
+              }
             }}
           >
             <Field label="Full name">
               <input
                 className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                name="fullName"
+                value={form.fullName}
+                onChange={change}
                 required
                 minLength={2}
                 maxLength={100}
@@ -372,14 +425,96 @@ export function UserProfile() {
               <input
                 className="input"
                 type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                maxLength={30}
+                name="phone"
+                value={form.phone}
+                onChange={change}
+                required={!!authUser}
+                maxLength={25}
               />
             </Field>
-            <Button type="submit">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Birthday">
+                <input
+                  className="input"
+                  aria-label="Birthday"
+                  name="birthday"
+                  type="date"
+                  min="1900-01-01"
+                  max={localDate()}
+                  value={form.birthday}
+                  onChange={change}
+                  onInput={change}
+                  required={!!authUser}
+                />
+              </Field>
+              <Field label="Sex">
+                <select
+                  className="input"
+                  aria-label="Sex"
+                  name="sex"
+                  value={form.sex}
+                  onChange={change}
+                  required={!!authUser}
+                >
+                  <option value="">Choose an option</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="prefer-not-to-say">Prefer not to say</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Address">
+              <input
+                className="input"
+                name="address"
+                aria-label="Address"
+                value={form.address}
+                onChange={change}
+                minLength={5}
+                maxLength={300}
+                required={!!authUser}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Weight (kg)">
+                <input
+                  className="input"
+                  aria-label="Weight (kg)"
+                  name="weight"
+                  type="number"
+                  min={20}
+                  max={500}
+                  step="0.1"
+                  value={form.weight}
+                  onChange={change}
+                  required={!!authUser}
+                />
+              </Field>
+              <Field label="Height (cm)">
+                <input
+                  className="input"
+                  aria-label="Height (cm)"
+                  name="height"
+                  type="number"
+                  min={50}
+                  max={250}
+                  step="0.1"
+                  value={form.height}
+                  onChange={change}
+                  required={!!authUser}
+                />
+              </Field>
+            </div>
+            <div className="rounded-xl bg-orange-50 p-4">
+              <p className="text-xs text-muted">Body mass index</p>
+              <p className="mt-2 text-3xl font-bold text-brand-strong">{currentBmi ?? '—'}</p>
+              <p className="mt-2 text-xs text-muted">
+                Weight (kg) ÷ height (m)². Calculated from the measurements entered above.
+              </p>
+            </div>
+            <Button type="submit" disabled={saving}>
               <Save size={15} />
-              Save profile
+              {saving ? 'Saving…' : 'Save profile'}
             </Button>
           </form>
         </Panel>

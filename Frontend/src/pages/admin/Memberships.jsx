@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Check, ArrowRight, Plus, Search, CreditCard } from 'lucide-react';
-import { plans, accessStatus } from '../../lib/domain';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Check, ArrowRight, Search, CalendarDays, Clock, TrendingUp } from 'lucide-react';
+import { plans, currentPlans, dailyRates, accessStatus, peso } from '../../lib/domain';
 import { useGym } from '../../context/GymContext';
 import {
   PageTitle,
@@ -27,7 +27,7 @@ export default function Memberships() {
   const member = state.members.find((m) => m.id === activation);
   const filtered = state.members.filter(
     (m) =>
-      m.name.toLowerCase().includes(query.toLowerCase()) &&
+      `${m.name} ${m.code}`.toLowerCase().includes(query.toLowerCase()) &&
       (planFilter === 'all' || m.access?.planId === planFilter),
   );
   function close() {
@@ -38,69 +38,97 @@ export default function Memberships() {
   return (
     <>
       <PageTitle
-        title="Access made simple"
-        description="Flexible ways to show up. You handle the welcome; we track the access."
+        title="Memberships & daily rates"
+        description="Student and non-student rates. Activate member access after payment at the counter."
       />
-      <div className="mb-7 grid gap-5 md:grid-cols-3">
-        {plans.map((plan, i) => (
-          <Panel key={plan.id} className={`relative p-6 ${i === 0 ? 'border-orange-200' : ''}`}>
-            {i === 0 && (
-              <span className="absolute right-4 top-4 rounded-full bg-orange-50 px-2.5 py-1 text-[9px] font-semibold text-brand-strong">
-                The everyday favorite
-              </span>
-            )}
-            <span
-              className={`mb-5 flex h-10 w-10 items-center justify-center rounded-xl ${i === 0 ? 'bg-orange-50 text-brand-strong' : i === 1 ? 'bg-sky-50 text-sky-600' : 'bg-violet-50 text-violet-600'}`}
-            >
-              <CreditCard size={20} />
-            </span>
-            <h2 className="text-lg font-bold tracking-tight">{plan.name}</h2>
-            <p className="mt-2 min-h-10 text-xs leading-5 text-muted">{plan.description}</p>
-            <div className="my-5 border-y border-line py-4">
-              <span className="text-[25px] font-bold tracking-tight">
-                {plan.sessions === null ? 'Unlimited' : plan.sessions}
-              </span>
-              <span className="ml-2 text-xs text-muted">
-                {plan.sessions === null ? 'visits' : plan.sessions === 1 ? 'visit' : 'sessions'}
-              </span>
-            </div>
-            <ul className="space-y-2.5">
-              {plan.features.map((f) => (
-                <li key={f} className="flex items-center gap-2 text-xs text-muted">
-                  <Check size={14} className="text-emerald-600" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-5 text-[10px] text-muted">Payment at the counter · Admin activation</p>
-            <Button
-              variant="secondary"
-              className="mt-4 w-full"
-              onClick={() => {
-                setPlanFilter(plan.id);
-                document
-                  .getElementById('access-list')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              View members <ArrowRight size={14} />
-            </Button>
-          </Panel>
-        ))}
+      <div className="mb-7 grid gap-5 xl:grid-cols-[1fr_1.65fr]">
+        <Panel className="p-5 sm:p-6">
+          <PanelTitle
+            title="Daily / per session"
+            subtitle="Walk-in rates · One gym admission"
+            action={<Clock size={20} className="text-brand-strong" />}
+          />
+          <div className="space-y-4">
+            {dailyRates.map((slot) => (
+              <div key={slot.id} className="rounded-xl border border-line p-4">
+                <p className="mb-4 text-sm font-bold text-brand-strong">{slot.name}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted">Student</p>
+                    <p className="mt-1 text-2xl font-bold">{peso(slot.student)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Non-student</p>
+                    <p className="mt-1 text-2xl font-bold">{peso(slot.nonStudent)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs leading-5 text-muted">
+            The morning promo applies to entry before noon. At 12 noon, use the afternoon rate. A
+            daily pass is used once at check-in.
+          </p>
+        </Panel>
+        <Panel className="overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <PanelTitle
+              title="Monthly memberships"
+              subtitle="Unlimited visits · Effective May 1"
+              action={<CalendarDays size={20} className="text-brand-strong" />}
+            />
+          </div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Duration</th>
+                  <th>Student</th>
+                  <th>Non-student</th>
+                  <th>Included</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentPlans
+                  .filter((p) => p.type === 'membership')
+                  .map((plan) => (
+                    <tr key={plan.id}>
+                      <td>
+                        <span className="font-semibold">{plan.short}</span>
+                        <span className="mt-1 block text-[10px] text-muted">Unlimited visits</span>
+                      </td>
+                      <td className="font-bold">{peso(plan.rates.student)}</td>
+                      <td className="font-bold">{peso(plan.rates.nonStudent)}</td>
+                      <td>
+                        <span className="flex items-center gap-1.5 text-xs">
+                          <Check size={13} className="text-emerald-600" />
+                          {plan.months > 1 ? 'Free T-shirt' : 'Gym access'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="m-5 rounded-xl bg-orange-50 p-4 text-xs leading-5 text-brand-strong">
+            Payments stay at the counter. Select the member below to activate or renew their plan,
+            rate category, and daily entry time.
+          </div>
+        </Panel>
       </div>
       <Panel id="access-list" className="scroll-mt-24 overflow-hidden">
         <div className="p-5">
           <PanelTitle
             title="Member access"
-            subtitle="Activate, renew, and keep everyone on track."
+            subtitle="Activate, renew, or view a member’s progress."
           />
           <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1">
+            <div className="relative min-w-48 flex-1">
               <Search size={15} className="absolute left-3 top-3 text-muted" />
               <input
                 className="input pl-9"
                 aria-label="Search membership members"
-                placeholder="Find a member..."
+                placeholder="Find a member or ID..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -115,6 +143,7 @@ export default function Memberships() {
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
+                  {p.legacy ? ' (previous preview)' : ''}
                 </option>
               ))}
             </select>
@@ -126,9 +155,10 @@ export default function Memberships() {
               <tr>
                 <th>Member</th>
                 <th>Current plan</th>
+                <th>Category / entry</th>
                 <th>Status</th>
-                <th>Valid until</th>
-                <th></th>
+                <th>Ends on (exclusive)</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -143,16 +173,45 @@ export default function Memberships() {
                       </span>
                     </div>
                   </td>
-                  <td>{plans.find((p) => p.id === m.access?.planId)?.name || 'Not assigned'}</td>
+                  <td>
+                    {plans.find((p) => p.id === m.access?.planId)?.name || 'Not assigned'}
+                    {m.access?.listedRate !== undefined && (
+                      <span className="mt-1 block text-[10px] text-muted">
+                        {peso(m.access.listedRate)} counter rate
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {m.access?.rateCategory
+                      ? m.access.rateCategory === 'student'
+                        ? 'Student'
+                        : 'Non-student'
+                      : 'Not recorded'}
+                    {m.access?.timeSlot && (
+                      <span className="mt-1 block text-[10px] text-muted">
+                        {dailyRates.find((r) => r.id === m.access.timeSlot)?.name}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <Badge status={accessStatus(m)} />
                   </td>
                   <td>{dateLabel(m.access?.end)}</td>
                   <td>
-                    <Button variant="secondary" onClick={() => setActivation(m.id)}>
-                      {m.access ? 'Renew' : 'Activate'}
-                      <ArrowRight size={13} />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="secondary" onClick={() => setActivation(m.id)}>
+                        {m.access ? 'Renew' : 'Activate'}
+                        <ArrowRight size={13} />
+                      </Button>
+                      <Link
+                        className="btn btn-secondary"
+                        to={`/admin/progress?member=${m.id}`}
+                        aria-label={`View progress for ${m.name}`}
+                      >
+                        <TrendingUp size={14} />
+                        Progress
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

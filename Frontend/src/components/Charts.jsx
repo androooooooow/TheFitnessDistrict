@@ -76,9 +76,14 @@ export function AttendanceChart({ visits, days = 7 }) {
 }
 export function MembershipDonut({ members }) {
   const active = members.filter((m) => accessStatus(m) === 'Active');
-  const types = plans.map((p) => ({
-    name: p.short,
-    count: active.filter((m) => m.access?.planId === p.id).length,
+  const types = [
+    { name: 'Monthly memberships', type: 'membership' },
+    { name: 'Per session', type: 'day' },
+    { name: 'Previous session packs', type: 'sessions' },
+  ].map((group) => ({
+    name: group.name,
+    count: active.filter((m) => plans.find((p) => p.id === m.access?.planId)?.type === group.type)
+      .length,
   }));
   const colors = ['#f58b0a', '#ffc777', '#fff0d9'];
   const total = active.length;

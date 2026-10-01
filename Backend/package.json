@@ -1,0 +1,45 @@
+{
+  "name": "fit-district-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "admin": "node scripts/bootstrapAdmin.js",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node --test tests/auth.integration.js",
+    "test:postgres": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/testPostgres.ps1",
+    "setup:env": "node scripts/setupEnv.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.6",
+    "dotenv": "18.0.5",
+    "express": "5.2.1",
+    "express-rate-limit": "8.7.0",
+    "helmet": "8.3.0",
+    "jsonwebtoken": "9.0.3",
+    "nodemailer": "10.0.13",
+    "pg": "8.23.1",
+    "pg-hstore": "2.3.4",
+    "sequelize": "6.37.8",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "supertest": "7.3.0"
+  },
+  "overrides": {
+    "sequelize": {
+      "uuid": "11.1.1"
+    }
+  }
+}

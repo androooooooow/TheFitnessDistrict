@@ -1,17 +1,17 @@
-import { localDate, addDays } from './domain';
+import { localDate, addDays, plans, accessEnd, rateFor } from './domain';
 
 export function createSeed() {
   const today = localDate();
   const people = [
     ['Alex Morgan', 'alex.morgan@example.com', 'monthly'],
     ['Sofia Reyes', 'sofia.reyes@example.com', 'monthly'],
-    ['Daniel Cruz', 'daniel.cruz@example.com', 'sessions'],
+    ['Daniel Cruz', 'daniel.cruz@example.com', 'quarterly'],
     ['Isabella Santos', 'isabella.santos@example.com', 'monthly'],
-    ['Miguel Garcia', 'miguel.garcia@example.com', 'sessions'],
+    ['Miguel Garcia', 'miguel.garcia@example.com', 'half-year'],
     ['Emma Wilson', 'emma.wilson@example.com', 'monthly'],
     ['James Navarro', 'james.navarro@example.com', 'day'],
     ['Olivia Lim', 'olivia.lim@example.com', 'monthly'],
-    ['Lucas Tan', 'lucas.tan@example.com', 'sessions'],
+    ['Lucas Tan', 'lucas.tan@example.com', 'annual'],
     ['Chloe Rivera', 'chloe.rivera@example.com', 'monthly'],
     ['Ethan Ramos', 'ethan.ramos@example.com', 'monthly'],
     ['Mia Torres', 'mia.torres@example.com', 'monthly'],
@@ -33,10 +33,19 @@ export function createSeed() {
             id: `a${i + 1}`,
             planId,
             status: i === 11 ? 'suspended' : 'active',
-            start: addDays(today, -15),
-            end: addDays(today, i === 7 ? -2 : i === 1 ? 3 : i === 3 ? 5 : i === 6 ? 1 : 18 + i),
-            sessions: planId === 'sessions' ? (i === 8 ? 2 : 6) : planId === 'day' ? 1 : null,
-            totalSessions: planId === 'sessions' ? 10 : planId === 'day' ? 1 : null,
+            start: addDays(
+              today,
+              i === 6 ? 0 : i === 7 ? -32 : i === 1 ? -27 : i === 3 ? -25 : -15,
+            ),
+            end: accessEnd(
+              addDays(today, i === 6 ? 0 : i === 7 ? -32 : i === 1 ? -27 : i === 3 ? -25 : -15),
+              plans.find((p) => p.id === planId),
+            ),
+            sessions: planId === 'day' ? 1 : null,
+            totalSessions: planId === 'day' ? 1 : null,
+            rateCategory: i % 2 === 0 ? 'student' : 'nonStudent',
+            listedRate: rateFor(planId, i % 2 === 0 ? 'student' : 'nonStudent', 'afternoon'),
+            timeSlot: planId === 'day' ? 'afternoon' : null,
           },
   }));
   const visits = [];
