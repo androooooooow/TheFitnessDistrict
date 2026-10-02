@@ -20,6 +20,7 @@ import {
   UserRound,
   ChevronRight,
   Dumbbell,
+  ScrollText,
 } from 'lucide-react';
 import { Brand, Avatar, Modal, Button, Toast } from './UI';
 import { useGym } from '../context/GymContext';
@@ -32,6 +33,7 @@ const adminNav = [
   ['memberships', 'Memberships', CreditCard],
   ['progress', 'Progress', TrendingUp],
   ['reports', 'Reports', BarChart3],
+  ['audit', 'Audit log', ScrollText],
 ];
 const userNav = [
   ['', 'Overview', LayoutDashboard],
@@ -44,7 +46,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const admin = location.pathname.startsWith('/admin');
-  const { state, userId, authUser, previewEnabled, logoutAccount, notify } = useGym();
+  const { state, userId, authUser, previewEnabled, logoutAccount, notify, gymError } = useGym();
   const member = state.members.find((m) => m.id === userId) || state.members[0];
   const [menu, setMenu] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -79,7 +81,9 @@ export default function Layout() {
         className={`fixed inset-y-0 left-0 z-40 w-[232px] flex-col overflow-y-auto border-r border-line bg-white transition-transform lg:flex lg:translate-x-0 ${menu ? 'flex translate-x-0' : 'hidden -translate-x-full'}`}
       >
         <div className="relative flex h-[128px] shrink-0 items-center justify-center px-4">
-          <Brand />
+          <NavLink to="/" aria-label="Back to home">
+            <Brand />
+          </NavLink>
           <button
             onClick={() => setMenu(false)}
             className="icon-btn absolute right-2 top-2 lg:hidden"
@@ -271,6 +275,17 @@ export default function Layout() {
           </div>
         </header>
         <main id="main-content" className="mx-auto max-w-[1530px] px-5 py-7 sm:px-8 sm:py-8">
+          {gymError && (
+            <p role="alert" className="mb-5 rounded-xl bg-rose-50 p-4 text-xs text-rose-700">
+              Could not load gym records. {gymError}
+            </p>
+          )}
+          {state.limited && (
+            <p className="mb-5 text-xs text-muted">
+              Dashboard summaries show up to 1,000 recent records. Use the attendance list for the
+              complete visit history.
+            </p>
+          )}
           <Outlet />
         </main>
       </div>

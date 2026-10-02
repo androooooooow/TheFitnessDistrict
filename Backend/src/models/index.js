@@ -26,6 +26,7 @@ export function defineModels(db) {
         field: 'requested_membership',
       },
       rateCategory: { type: DataTypes.STRING(20), allowNull: false, field: 'rate_category' },
+      version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
     },
     common,
   );
@@ -76,5 +77,50 @@ export function defineModels(db) {
     },
     common,
   );
-  return { User, Profile, Pending, Session, Refresh, Counter };
+  const Audit = db.define(
+    'audit_logs',
+    {
+      id: { type: DataTypes.UUID, primaryKey: true },
+      actorId: { type: DataTypes.UUID, field: 'actor_id' },
+      actorRole: { type: DataTypes.TEXT, field: 'actor_role', allowNull: false },
+      action: { type: DataTypes.TEXT, allowNull: false },
+      entityType: { type: DataTypes.TEXT, field: 'entity_type', allowNull: false },
+      entityId: { type: DataTypes.UUID, field: 'entity_id' },
+      details: { type: DataTypes.JSONB, allowNull: false },
+      occurredAt: { type: DataTypes.DATE, field: 'occurred_at', allowNull: false },
+    },
+    common,
+  );
+  const Progress = db.define(
+    'progress_entries',
+    {
+      id: { type: DataTypes.UUID, primaryKey: true },
+      memberId: { type: DataTypes.UUID, field: 'member_id', allowNull: false },
+      metric: { type: DataTypes.TEXT, allowNull: false },
+      date: { type: DataTypes.DATEONLY, field: 'measured_on', allowNull: false },
+      encryptedData: { type: DataTypes.TEXT, field: 'encrypted_data', allowNull: false },
+      source: { type: DataTypes.TEXT, allowNull: false },
+      createdBy: { type: DataTypes.UUID, field: 'created_by', allowNull: false },
+      authorRole: { type: DataTypes.TEXT, field: 'author_role', allowNull: false },
+      version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      sortOrder: { type: DataTypes.BIGINT, field: 'sort_order', autoIncrement: true },
+      createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      updatedAt: { type: DataTypes.DATE, field: 'updated_at', allowNull: false },
+    },
+    common,
+  );
+  const Goal = db.define(
+    'member_goals',
+    {
+      id: { type: DataTypes.UUID, primaryKey: true },
+      memberId: { type: DataTypes.UUID, field: 'member_id', allowNull: false },
+      metric: { type: DataTypes.TEXT, allowNull: false },
+      encryptedData: { type: DataTypes.TEXT, field: 'encrypted_data', allowNull: false },
+      updatedBy: { type: DataTypes.UUID, field: 'updated_by', allowNull: false },
+      version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      updatedAt: { type: DataTypes.DATE, field: 'updated_at', allowNull: false },
+    },
+    common,
+  );
+  return { User, Profile, Pending, Session, Refresh, Counter, Audit, Progress, Goal };
 }

@@ -1,29 +1,25 @@
 import { useState } from 'react';
+import ProfileEditor from '../../components/ProfileEditor';
 import { useNavigate } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import {
   Activity,
   CreditCard,
   Clock3,
   Plus,
   ArrowUpRight,
-  Check,
   Dumbbell,
-  Save,
   CalendarDays,
   TrendingUp,
 } from 'lucide-react';
 import { useGym } from '../../context/GymContext';
-import { accessStatus, plans, localDate, addDays, dailyRates, peso } from '../../lib/domain';
+import { accessStatus, plans, localDate, dailyRates, peso } from '../../lib/domain';
 import {
   PageTitle,
   Panel,
   PanelTitle,
   StatCard,
   Button,
-  Avatar,
   Badge,
-  Field,
   Empty,
   dateLabel,
   timeLabel,
@@ -44,15 +40,10 @@ function useMember() {
 export function MemberCard({ member }) {
   return (
     <Panel className="p-6">
-      <PanelTitle title="Your district card" subtitle="Show this at the gym counter." />
+      <PanelTitle title="Your membership details" subtitle="Your account and gym access." />
       <div className="flex flex-col items-center rounded-xl border border-dashed border-orange-200 bg-[#fffcfa] px-5 py-6">
         <div className="rounded-xl border border-line bg-white p-3">
-          <QRCodeSVG
-            value={member.code}
-            size={118}
-            level="M"
-            title={`Member code ${member.code}`}
-          />
+          <Dumbbell size={48} className="text-brand-strong" />
         </div>
         <p className="mt-4 text-sm font-bold">{member.name}</p>
         <p className="mt-1.5 font-mono text-xs tracking-widest text-muted">{member.code}</p>
@@ -61,7 +52,7 @@ export function MemberCard({ member }) {
         </div>
       </div>
       <p className="mt-4 text-center text-[10px] leading-5 text-muted">
-        Your card identifies you. The admin confirms access and records your visit.
+        Pay at the counter to activate access. Scan the gym QR from My attendance to time in or out.
       </p>
     </Panel>
   );
@@ -183,7 +174,7 @@ export function UserOverview() {
             {!recent.length && (
               <Empty
                 title="Your first visit awaits"
-                description="Once the admin checks you in, your visits appear here."
+                description="Scan the gym QR from My attendance to time in. Your visits appear here."
               />
             )}
           </Panel>
@@ -340,186 +331,10 @@ export function UserMembership() {
   );
 }
 export function UserProfile() {
-  const { member, updateMember, authUser } = useMember();
-  const [form, setForm] = useState({
-    fullName: member?.name || '',
-    birthday: member?.birthday || '',
-    sex: member?.sex || '',
-    address: member?.address || '',
-    phone: member?.phone || '',
-    weight: member?.weight || '',
-    height: member?.height || '',
-  });
-  const [saving, setSaving] = useState(false);
-  const change = (e) => {
-    const { name, value } = e.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  };
-  const currentBmi =
-    Number(form.weight) > 0 && Number(form.height) > 0
-      ? Number((Number(form.weight) / (Number(form.height) / 100) ** 2).toFixed(1))
-      : null;
-  if (!member) return null;
-  return (
-    <>
-      <PageTitle
-        title="A little about you"
-        description="Keep your details up to date and your district close."
-      />
-      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        <Panel className="p-6">
-          <div className="mb-7 flex items-center gap-4">
-            <Avatar member={member} size="large" />
-            <div>
-              <h2 className="text-xl font-bold">{member.name}</h2>
-              <p className="mt-1 text-xs text-muted">
-                {member.code} · Member since {dateLabel(member.joined)}
-              </p>
-            </div>
-          </div>
-          <form
-            className="space-y-5"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const submitted = Object.fromEntries(new FormData(e.currentTarget));
-              const values = {
-                ...submitted,
-                fullName: submitted.fullName.trim(),
-                weight: Number(submitted.weight),
-                height: Number(submitted.height),
-              };
-              setSaving(true);
-              try {
-                await updateMember(
-                  member.id,
-                  authUser ? values : { ...values, name: values.fullName },
-                );
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <Field label="Full name">
-              <input
-                className="input"
-                name="fullName"
-                value={form.fullName}
-                onChange={change}
-                required
-                minLength={2}
-                maxLength={100}
-              />
-            </Field>
-            <Field
-              label="Email address"
-              hint="Email changes require verification and will be available with account settings."
-            >
-              <input
-                className="input bg-canvas text-muted"
-                value={member.email}
-                readOnly
-                type="email"
-              />
-            </Field>
-            <Field label="Phone number">
-              <input
-                className="input"
-                type="tel"
-                name="phone"
-                value={form.phone}
-                onChange={change}
-                required={!!authUser}
-                maxLength={25}
-              />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Birthday">
-                <input
-                  className="input"
-                  aria-label="Birthday"
-                  name="birthday"
-                  type="date"
-                  min="1900-01-01"
-                  max={localDate()}
-                  value={form.birthday}
-                  onChange={change}
-                  onInput={change}
-                  required={!!authUser}
-                />
-              </Field>
-              <Field label="Sex">
-                <select
-                  className="input"
-                  aria-label="Sex"
-                  name="sex"
-                  value={form.sex}
-                  onChange={change}
-                  required={!!authUser}
-                >
-                  <option value="">Choose an option</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
-                </select>
-              </Field>
-            </div>
-            <Field label="Address">
-              <input
-                className="input"
-                name="address"
-                aria-label="Address"
-                value={form.address}
-                onChange={change}
-                minLength={5}
-                maxLength={300}
-                required={!!authUser}
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Weight (kg)">
-                <input
-                  className="input"
-                  aria-label="Weight (kg)"
-                  name="weight"
-                  type="number"
-                  min={20}
-                  max={500}
-                  step="0.1"
-                  value={form.weight}
-                  onChange={change}
-                  required={!!authUser}
-                />
-              </Field>
-              <Field label="Height (cm)">
-                <input
-                  className="input"
-                  aria-label="Height (cm)"
-                  name="height"
-                  type="number"
-                  min={50}
-                  max={250}
-                  step="0.1"
-                  value={form.height}
-                  onChange={change}
-                  required={!!authUser}
-                />
-              </Field>
-            </div>
-            <div className="rounded-xl bg-orange-50 p-4">
-              <p className="text-xs text-muted">Body mass index</p>
-              <p className="mt-2 text-3xl font-bold text-brand-strong">{currentBmi ?? '—'}</p>
-              <p className="mt-2 text-xs text-muted">
-                Weight (kg) ÷ height (m)². Calculated from the measurements entered above.
-              </p>
-            </div>
-            <Button type="submit" disabled={saving}>
-              <Save size={15} />
-              {saving ? 'Saving…' : 'Save profile'}
-            </Button>
-          </form>
-        </Panel>
-        <MemberCard member={member} />
-      </div>
-    </>
-  );
+  const { member } = useMember();
+  if (!member)
+    return (
+      <Empty title="Loading your profile…" description="Your saved details will appear here." />
+    );
+  return <ProfileEditor key={member.id} member={member} card={<MemberCard member={member} />} />;
 }

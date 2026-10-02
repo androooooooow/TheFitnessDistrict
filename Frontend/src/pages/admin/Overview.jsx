@@ -58,7 +58,7 @@ export default function Overview() {
         action={
           <Button onClick={() => navigate('/admin/attendance')}>
             <Plus size={16} />
-            Check in member
+            Show gym QR
           </Button>
         }
       />
@@ -201,7 +201,7 @@ export default function Overview() {
           {!recent.length && (
             <Empty
               title="Ready for the first arrival"
-              description="Check in a member to start your attendance history."
+              description="Member QR scans will appear in your attendance history."
             />
           )}
           <div className="flex items-center justify-between border-t border-line px-6 py-3 text-[10px] text-muted">

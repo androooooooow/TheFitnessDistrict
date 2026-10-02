@@ -27,7 +27,7 @@ import {
 import { MemberCreate, AccessModal } from '../../components/Forms';
 
 export default function Members() {
-  const { state, suspend } = useGym();
+  const { state, suspend, previewEnabled } = useGym();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [filter, setFilter] = useState('All members');
@@ -63,10 +63,12 @@ export default function Members() {
         title="Your community"
         description="Good people. Big goals. Keep every member moving."
         action={
-          <Button onClick={() => setCreate(true)}>
-            <Plus size={16} />
-            Add member
-          </Button>
+          previewEnabled && (
+            <Button onClick={() => setCreate(true)}>
+              <Plus size={16} />
+              Add member
+            </Button>
+          )
         }
       />
       <Panel className="overflow-hidden">

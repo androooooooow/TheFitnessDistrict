@@ -33,7 +33,18 @@ export default function Auth() {
   const location = useLocation();
   const register = location.pathname === '/register';
   const verify = location.pathname === '/verify-email';
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(() => {
+    const preferences = new URLSearchParams(location.search);
+    const membership = preferences.get('membership');
+    const rateCategory = preferences.get('category');
+    return {
+      ...initial,
+      membership: ['monthly', 'quarterly', 'half-year', 'annual', 'day'].includes(membership)
+        ? membership
+        : initial.membership,
+      rateCategory: ['student', 'nonStudent'].includes(rateCategory) ? rateCategory : '',
+    };
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -183,7 +194,9 @@ export default function Auth() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[.85fr_1.15fr]">
       <aside className="auth-art relative hidden min-h-screen flex-col justify-between overflow-hidden bg-[#1d2529] p-12 text-white lg:flex">
-        <Brand inverse />
+        <Link to="/" aria-label="Back to home">
+          <Brand inverse />
+        </Link>
         <div className="relative z-10 my-16">
           <span className="text-xs font-semibold uppercase tracking-[.15em] text-orange-200">
             Welcome to your district
@@ -211,7 +224,9 @@ export default function Auth() {
         className="flex min-h-screen flex-col items-center justify-center bg-white px-6 py-10 sm:px-12"
       >
         <div className="mb-8 lg:hidden">
-          <Brand />
+          <Link to="/" aria-label="Back to home">
+            <Brand />
+          </Link>
         </div>
         <div className={`w-full ${register ? 'max-w-[560px]' : 'max-w-[400px]'}`}>
           {previewEnabled && (

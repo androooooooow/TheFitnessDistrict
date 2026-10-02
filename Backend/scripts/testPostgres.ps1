@@ -1,4 +1,4 @@
-param([switch]$Browser)
+param([switch]$Browser, [int]$ApiPort=3001, [string]$FrontendOrigin='http://127.0.0.1:5173', [switch]$SeedGym)
 $ErrorActionPreference = 'Stop'
 $testRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $pgBin = if ($env:PG_BIN) { $env:PG_BIN } else { 'C:\Program Files\PostgreSQL\18\bin' }
@@ -48,8 +48,8 @@ try {
     $env:DATABASE_URL=$env:TEST_DATABASE_URL
     $env:DATABASE_SSL='false'
     $env:MAIL_TRANSPORT='file'
-    $env:FRONTEND_ORIGIN='http://127.0.0.1:5173'
-    $env:PORT='3001'
+    $env:FRONTEND_ORIGIN=$FrontendOrigin
+    $env:PORT=[string]$ApiPort
     foreach ($keyName in @('JWT_SECRET','CODE_SECRET','CSRF_SECRET','FIELD_ENCRYPTION_KEY')) {
       $keyBuffer = New-Object byte[] 32
       $keyGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -59,6 +59,10 @@ try {
     }
     & node (Join-Path $testRoot 'scripts\migrate.js')
     if ($LASTEXITCODE -ne 0) { throw 'Test fixture migration failed.' }
+    if ($SeedGym) {
+      & node (Join-Path $testRoot 'scripts\seedGymQa.js')
+      if ($LASTEXITCODE -ne 0) { throw 'Test fixture seed failed.' }
+    }
     & node (Join-Path $testRoot 'src\server.js')
   } else {
     & node --test (Join-Path $testRoot 'tests\auth.integration.js')

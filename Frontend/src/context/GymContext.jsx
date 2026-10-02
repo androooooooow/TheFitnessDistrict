@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { GymContext } from './gym-context';
 import { createSeed } from '../lib/seed';
 import * as domain from '../lib/domain';
 import { api, clearCsrf } from '../lib/api';
 
-const GymContext = createContext(null);
 const STORAGE_KEY = 'fitnessdistrict-preview-v1';
 const previewEnabled = import.meta.env.VITE_ENABLE_PREVIEW === 'true';
 const emptyState = () => ({
@@ -45,13 +45,36 @@ export function GymProvider({ children }) {
   const [state, setState] = useState(loadState);
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [gymError, setGymError] = useState('');
+  const [progressRevision, setProgressRevision] = useState(0);
+  const authRef = useRef(authUser);
+  authRef.current = authUser;
+  const refreshSerial = useRef(0);
+  const refreshGym = useCallback(async () => {
+    const account = authRef.current;
+    if (!account) return;
+    const serial = ++refreshSerial.current;
+    try {
+      const data = await api('/gym/state');
+      if (authRef.current?.id === account.id && serial === refreshSerial.current) {
+        setState(data);
+        setGymError('');
+      }
+    } catch (error) {
+      if (authRef.current?.id === account.id && serial === refreshSerial.current)
+        setGymError(error.message);
+    }
+  }, []);
   useEffect(() => {
     let current = true;
     api('/auth/me')
       .then(({ user }) => {
         if (current) {
           setAuthUser(user);
-          setState({ ...emptyState(), members: user.member ? [user.member] : [] });
+          setState({
+            ...emptyState(),
+            members: user.role === 'user' && user.member ? [user.member] : [],
+          });
         }
       })
       .catch(() => {})
@@ -63,9 +86,21 @@ export function GymProvider({ children }) {
     };
   }, []);
   useEffect(() => {
-    if (authUser) setState({ ...emptyState(), members: authUser.member ? [authUser.member] : [] });
-    else if (!previewEnabled) setState(emptyState());
-  }, [authUser]);
+    if (!authUser) {
+      if (!previewEnabled) setState(emptyState());
+      return;
+    }
+    refreshGym();
+    const refresh = () => {
+      if (!document.hidden) refreshGym();
+    };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [authUser?.id, authUser?.role, refreshGym]);
   const [selectedUserId, setUserId] = useState(() => {
     try {
       return sessionStorage.getItem('fd-preview-member') || 'm1';
@@ -118,11 +153,17 @@ export function GymProvider({ children }) {
   const value = {
     authUser,
     authLoading,
+    gymError,
+    refreshGym,
+    progressRevision,
     previewEnabled: previewEnabled && !authUser,
     async loginAccount(input) {
       const result = await api('/auth/login', { method: 'POST', body: input });
       setAuthUser(result.user);
-      setState({ ...emptyState(), members: result.user.member ? [result.user.member] : [] });
+      setState({
+        ...emptyState(),
+        members: result.user.role === 'user' && result.user.member ? [result.user.member] : [],
+      });
       return result.user;
     },
     signupAccount: (input) => api('/auth/signup', { method: 'POST', body: input }),
@@ -148,32 +189,122 @@ export function GymProvider({ children }) {
     dismissToast: () => setToast(null),
     checkIn: (id) => act(domain.checkIn, id),
     checkOut: (id) => act(domain.checkOut, id),
-    activate: (id, planId, start, options) =>
-      act(domain.activateAccess, id, planId, start, options),
-    suspend: (id, status) => act(domain.setAccessStatus, id, status),
+    async activate(id, planId, start, options) {
+      if (!authUser) return act(domain.activateAccess, id, planId, start, options);
+      try {
+        const result = await api(`/gym/members/${id}/access`, {
+          method: 'POST',
+          body: {
+            requestId: options.requestId,
+            planId,
+            rateCategory: options.rateCategory,
+            ...(planId === 'day' ? { timeSlot: options.timeSlot } : {}),
+            paymentConfirmed: true,
+          },
+        });
+        await refreshGym();
+        notify(result.message);
+        return result;
+      } catch (error) {
+        notify(error.message, true);
+        return null;
+      }
+    },
+    async suspend(id, status) {
+      if (!authUser) return act(domain.setAccessStatus, id, status);
+      try {
+        const result = await api(`/gym/members/${id}/access/status`, {
+          method: 'PUT',
+          body: { status },
+        });
+        await refreshGym();
+        notify(result.message);
+        return result;
+      } catch (error) {
+        notify(error.message, true);
+        return null;
+      }
+    },
     createMember: (input) => act(domain.createMember, input),
-    addProgress: (input, author) => act(domain.addProgress, input, author),
-    editProgress: (id, input, author) => act(domain.editProgress, id, input, author),
+    async addProgress(input, author) {
+      if (previewEnabled && !authRef.current) return act(domain.addProgress, input, author);
+      const result = await api('/gym/progress', {
+        method: 'POST',
+        body: {
+          memberId: input.memberId,
+          metric: input.metric,
+          value: Number(input.value),
+          date: input.date,
+          notes: input.notes || '',
+          requestId: input.requestId,
+        },
+      });
+      await refreshGym();
+      setProgressRevision((n) => n + 1);
+      notify(result.message);
+      return result;
+    },
+    async editProgress(id, input, author) {
+      if (previewEnabled && !authRef.current) return act(domain.editProgress, id, input, author);
+      const result = await api(`/gym/progress/${id}`, {
+        method: 'PUT',
+        body: {
+          metric: input.metric,
+          value: Number(input.value),
+          date: input.date,
+          notes: input.notes || '',
+          version: input.version,
+        },
+      });
+      await refreshGym();
+      setProgressRevision((n) => n + 1);
+      notify(result.message);
+      return result;
+    },
     updateMember: async (id, values) => {
-      if (authUser) {
+      if (authRef.current || !previewEnabled) {
         try {
           const result = await api('/me/profile', { method: 'PUT', body: values });
           setAuthUser(result.user);
+          setState((s) => ({
+            ...s,
+            members: s.members.map((m) =>
+              m.id === id
+                ? { ...m, ...result.user.member, access: m.access, history: m.history }
+                : m,
+            ),
+          }));
+          await refreshGym();
+          setProgressRevision((n) => n + 1);
           notify('Profile updated.');
           return true;
         } catch (error) {
-          notify(error.message, true);
-          return false;
+          if (error.status === 409) await refreshGym();
+          throw error;
         }
       }
       if (!previewEnabled) return false;
-      setState({
+      let next = {
         ...state,
         members: state.members.map((m) =>
-          m.id === id ? { ...m, name: values.name, phone: values.phone } : m,
+          m.id === id ? { ...m, ...values, name: values.fullName || values.name } : m,
         ),
-      });
+      };
+      if (state.members.find((m) => m.id === id)?.weight !== values.weight)
+        next = domain.addProgress(
+          next,
+          {
+            memberId: id,
+            metric: 'Weight',
+            value: values.weight,
+            date: domain.localDate(),
+            notes: 'Weight updated from profile.',
+          },
+          id,
+        ).state;
+      setState(next);
       notify('Profile updated.');
+      return true;
     },
     saveSettings: (settings) => {
       if (authUser || !previewEnabled) {
@@ -183,11 +314,24 @@ export function GymProvider({ children }) {
       setState({ ...state, settings });
       notify('Gym details saved.');
     },
-    saveGoal: (goal) => {
-      if (authUser || !previewEnabled) {
-        notify('Goal tracking is not connected yet.', true);
-        return;
+    saveGoal: async (goal) => {
+      if (authRef.current || !previewEnabled) {
+        const result = await api('/gym/goals', {
+          method: 'POST',
+          body: {
+            memberId: goal.memberId,
+            metric: goal.metric,
+            target: goal.target,
+            requestId: goal.requestId,
+            ...(goal.version ? { version: goal.version } : {}),
+          },
+        });
+        await refreshGym();
+        setProgressRevision((n) => n + 1);
+        notify(result.message);
+        return result;
       }
+      if (!previewEnabled) return false;
       setState({
         ...state,
         goals: [
@@ -196,6 +340,7 @@ export function GymProvider({ children }) {
         ],
       });
       notify('Your goal is set. Let’s work toward it.');
+      return true;
     },
     reset: () => {
       if (authUser || !previewEnabled) return state;
@@ -208,4 +353,4 @@ export function GymProvider({ children }) {
   };
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>;
 }
-export const useGym = () => useContext(GymContext);
+export { useGym } from './gym-context';

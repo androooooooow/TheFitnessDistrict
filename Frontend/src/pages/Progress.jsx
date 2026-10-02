@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Target, TrendingUp, Scale, CalendarDays, Pencil, Dumbbell } from 'lucide-react';
 import { useGym } from '../context/GymContext';
@@ -16,7 +17,7 @@ import { ProgressChart } from '../components/Charts';
 import { ProgressModal, GoalModal } from '../components/Forms';
 
 export default function Progress({ user = false }) {
-  const { state, userId } = useGym();
+  const { state, userId, authUser, progressRevision } = useGym();
   const [params, setParams] = useSearchParams();
   const selected = user ? userId : params.get('member') || state.members[0]?.id;
   const [metric, setMetric] = useState('Weight');
@@ -24,29 +25,66 @@ export default function Progress({ user = false }) {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [goalModal, setGoalModal] = useState(false);
+  const [page, setPage] = useState(0),
+    [data, setData] = useState(null),
+    [error, setError] = useState(''),
+    [retry, setRetry] = useState(0);
   const member = state.members.find((m) => m.id === (user ? userId : selected)) || state.members[0];
+  useEffect(() => {
+    setPage(0);
+  }, [member?.id, metric]);
+  useEffect(() => {
+    if (!authUser || !member) return;
+    let live = true;
+    const load = async () => {
+      try {
+        const result = await api(
+          `/gym/progress?${new URLSearchParams({ memberId: member.id, metric, limit: '25', offset: String(page * 25) })}`,
+        );
+        if (live) {
+          setData(result);
+          setError('');
+        }
+      } catch (e) {
+        if (live) setError(e.message);
+      }
+    };
+    setData(null);
+    load();
+    const timer = setInterval(() => {
+      if (!document.hidden) load();
+    }, 30000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [authUser?.id, member?.id, metric, page, progressRevision, retry]);
   if (!member)
     return <Empty title="No members yet" description="Add a member to start tracking progress." />;
   const all = state.progress
     .filter((p) => p.memberId === member.id)
     .sort((a, b) => a.date.localeCompare(b.date));
   const selectedEntries = all.filter((p) => p.metric === metric);
-  const entries = period === 'all' ? selectedEntries : selectedEntries.slice(-4);
-  const latest = selectedEntries.at(-1);
-  const first = selectedEntries[0];
+  const chart = authUser ? data?.chart || [] : selectedEntries;
+  const entries = period === 'all' ? chart : chart.slice(-4);
+  const latest = authUser ? data?.summary.latest : selectedEntries.at(-1);
+  const first = authUser ? data?.summary.first : selectedEntries[0];
   const delta = latest && first ? latest.value - first.value : null;
-  const goal = state.goals.find((g) => g.memberId === member.id && g.metric === metric);
+  const goal = (authUser ? data?.goals || [] : state.goals).find(
+    (g) => g.memberId === member.id && g.metric === metric,
+  );
+  const baseline = goal?.baseline ?? first?.value;
   const goalFraction =
     goal && latest && first
       ? Math.max(
           0,
           Math.min(
             1,
-            goal.target === first.value
+            goal.target === baseline
               ? latest.value === goal.target
                 ? 1
                 : 0
-              : (latest.value - first.value) / (goal.target - first.value),
+              : (latest.value - baseline) / (goal.target - baseline),
           ),
         )
       : 0;
@@ -103,6 +141,14 @@ export default function Progress({ user = false }) {
           ))}
         </div>
       </Panel>
+      {error && (
+        <p role="alert" className="mb-5 rounded-xl bg-rose-50 p-4 text-xs text-rose-700">
+          {error}{' '}
+          <button className="underline" onClick={() => setRetry((n) => n + 1)}>
+            Try again
+          </button>
+        </p>
+      )}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard
           label={`Latest ${metric.toLowerCase()}`}
@@ -123,7 +169,7 @@ export default function Progress({ user = false }) {
         />
         <StatCard
           label="Measurements recorded"
-          value={selectedEntries.length}
+          value={authUser ? (data?.summary.count ?? '—') : selectedEntries.length}
           icon={CalendarDays}
           color="green"
           note={`for ${metric.toLowerCase()}`}
@@ -141,12 +187,19 @@ export default function Progress({ user = false }) {
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
               >
-                <option value="all">All entries</option>
+                <option value="all">
+                  {data?.chartLimited ? 'Latest 200 measurements' : 'All measurements'}
+                </option>
                 <option value="recent">Latest 4 entries</option>
               </select>
             }
           />
           <ProgressChart entries={entries} />
+          {data?.chartLimited && (
+            <p className="mt-3 text-xs text-muted">
+              The chart shows the latest 200 measurements. The journal keeps your complete history.
+            </p>
+          )}
         </Panel>
         <Panel className="flex flex-col p-6">
           <PanelTitle
@@ -168,7 +221,8 @@ export default function Progress({ user = false }) {
                 />
               </div>
               <p className="mt-2 text-[10px] text-muted">
-                {Math.round(goalFraction * 100)}% of the change from your first log to this target
+                {Math.round(goalFraction * 100)}% of the change from your starting measurement to
+                this target
               </p>
               <p className="mt-4 text-xs leading-6 text-muted">
                 {goalFraction >= 1
@@ -206,7 +260,7 @@ export default function Progress({ user = false }) {
               </tr>
             </thead>
             <tbody>
-              {[...all].reverse().map((p) => (
+              {(authUser ? data?.entries || [] : [...all].reverse()).map((p) => (
                 <tr key={p.id}>
                   <td>{dateLabel(p.date)}</td>
                   <td>{p.metric}</td>
@@ -235,9 +289,9 @@ export default function Progress({ user = false }) {
             </tbody>
           </table>
         </div>
-        {!all.length && (
+        {!(authUser ? data?.total : all.length) && (
           <Empty
-            title="Your story starts here"
+            title={authUser && !data && !error ? 'Loading your journal…' : 'Your story starts here'}
             description="Record a measurement to begin your progress journal."
             action={
               <Button onClick={() => setModal(true)}>
@@ -247,10 +301,31 @@ export default function Progress({ user = false }) {
             }
           />
         )}
+        {authUser && data && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4 text-xs text-muted">
+            <span>
+              {data.total} measurements · Page {page + 1} of{' '}
+              {Math.max(1, Math.ceil(data.total / 25))}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="secondary" disabled={!page} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={(page + 1) * 25 >= data.total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Panel>
       {(modal || editing) && (
         <ProgressModal
           member={member}
+          metric={metric}
           entry={editing}
           author={user ? userId : 'admin'}
           onClose={() => {
@@ -259,7 +334,14 @@ export default function Progress({ user = false }) {
           }}
         />
       )}
-      {goalModal && <GoalModal member={member} onClose={() => setGoalModal(false)} />}
+      {goalModal && (
+        <GoalModal
+          member={member}
+          metric={metric}
+          goal={goal}
+          onClose={() => setGoalModal(false)}
+        />
+      )}
     </>
   );
 }

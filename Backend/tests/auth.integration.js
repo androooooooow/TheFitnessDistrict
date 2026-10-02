@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { createDatabase } from '../src/config/database.js';
 import { defineModels } from '../src/models/index.js';
 import { createApp } from '../src/app.js';
 import { migrate } from '../scripts/migrate.js';
 import { readEnv } from '../src/config/env.js';
 import { valid } from './fixtures.js';
+import { gymTests } from './gym.integration.js';
+import { progressTests } from './progress.integration.js';
 const url = process.env.TEST_DATABASE_URL;
 if (!url)
   throw new Error(
@@ -43,6 +46,69 @@ test('PostgreSQL signup, verification, sessions, and profile API', async (t) => 
   try {
     await migrate(db);
     await migrate(db);
+    await t.test(
+      'pgAdmin SQL creates tables atomically and records a repeatable migration',
+      async () => {
+        const schema = `pgadmin_${randomBytes(8).toString('hex')}`;
+        await db.query(`CREATE SCHEMA ${schema}`);
+        const sql = await readFile(new URL('../sql/001-auth.sql', import.meta.url), 'utf8');
+        const isolatedSql = sql.replace('BEGIN;', `BEGIN;\nSET LOCAL search_path TO ${schema};`);
+        await db.query(isolatedSql);
+        await db.query(isolatedSql);
+        const [versions] = await db.query(`SELECT name FROM ${schema}.schema_migrations`);
+        assert.deepEqual(
+          versions.map((row) => row.name),
+          ['001-auth'],
+        );
+        const [tables] = await db.query(
+          'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
+          { bind: [schema] },
+        );
+        assert.deepEqual(
+          tables.map((row) => row.name),
+          [
+            'auth_counters',
+            'auth_sessions',
+            'member_profiles',
+            'refresh_tokens',
+            'schema_migrations',
+            'signup_challenges',
+            'users',
+          ],
+        );
+        const gymSql = await readFile(new URL('../sql/002-gym.sql', import.meta.url), 'utf8');
+        const isolatedGymSql = gymSql.replace(
+          'BEGIN;',
+          `BEGIN;\nSET LOCAL search_path TO ${schema};`,
+        );
+        await db.query(isolatedGymSql);
+        await db.query(isolatedGymSql);
+        const [gymVersions] = await db.query(
+          `SELECT name FROM ${schema}.schema_migrations ORDER BY name`,
+        );
+        assert.deepEqual(
+          gymVersions.map((row) => row.name),
+          ['001-auth', '002-gym'],
+        );
+        const progressSql = await readFile(
+          new URL('../sql/003-progress.sql', import.meta.url),
+          'utf8',
+        );
+        const isolatedProgressSql = progressSql.replace(
+          'BEGIN;',
+          `BEGIN;\nSET LOCAL search_path TO ${schema};`,
+        );
+        await db.query(isolatedProgressSql);
+        await db.query(isolatedProgressSql);
+        const [finalVersions] = await db.query(
+          `SELECT name FROM ${schema}.schema_migrations ORDER BY name`,
+        );
+        assert.deepEqual(
+          finalVersions.map((row) => row.name),
+          ['001-auth', '002-gym', '003-progress'],
+        );
+      },
+    );
     assert.equal(
       await models.User.count(),
       0,
@@ -366,6 +432,8 @@ test('PostgreSQL signup, verification, sessions, and profile API', async (t) => 
       const unknown = await c.get('/api/v1/does-not-exist').expect(404);
       assert.ok(!JSON.stringify(unknown.body).includes('stack'));
     });
+    await gymTests({ t, db, models, env, client, register, post });
+    await progressTests({ t, db, models, env, client, register });
   } finally {
     await db.close();
   }

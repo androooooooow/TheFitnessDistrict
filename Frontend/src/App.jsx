@@ -7,7 +7,9 @@ import Attendance from './pages/admin/Attendance';
 import Memberships from './pages/admin/Memberships';
 import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
+import AuditLog from './pages/admin/AuditLog';
 import Progress from './pages/Progress';
+import Landing from './pages/Landing';
 import { UserOverview, UserMembership, UserProfile } from './pages/user/UserPages';
 import Auth from './pages/auth/Auth';
 import { Brand } from './components/UI';
@@ -38,7 +40,7 @@ export default function App() {
           Skip to content
         </a>
         <Routes>
-          <Route path="/" element={<Navigate to="/admin" replace />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Auth key="login" />} />
           <Route path="/register" element={<Auth key="register" />} />
           <Route path="/verify-email" element={<Auth key="verify" />} />
@@ -63,6 +65,7 @@ export default function App() {
               <Route path="/admin/progress" element={<Progress />} />
               <Route path="/admin/reports" element={<Reports />} />
               <Route path="/admin/settings" element={<Settings />} />
+              <Route path="/admin/audit" element={<AuditLog />} />
             </Route>
             <Route
               element={
@@ -88,8 +91,8 @@ export default function App() {
                 <p className="text-sm text-muted">
                   This page doesn’t exist. Your district is one click away.
                 </p>
-                <Link to="/admin" className="btn btn-primary">
-                  Back to dashboard
+                <Link to="/" className="btn btn-primary">
+                  Back to home
                 </Link>
               </div>
             }

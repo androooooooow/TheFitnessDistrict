@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19"
   },
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node --use-system-ca --watch src/server.js",
+    "start": "node --use-system-ca src/server.js",
     "migrate": "node scripts/migrate.js",
     "admin": "node scripts/bootstrapAdmin.js",
     "test": "node --test tests/*.test.js",

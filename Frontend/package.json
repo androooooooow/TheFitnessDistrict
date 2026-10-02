@@ -12,6 +12,9 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@zxing/browser": "0.2.1",
+    "@zxing/library": "0.23.0",
+    "jsqr": "1.4.0",
     "lucide-react": "1.49.0",
     "qrcode.react": "4.2.0",
     "react": "19.3.0",

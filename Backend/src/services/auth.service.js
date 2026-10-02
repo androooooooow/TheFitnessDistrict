@@ -14,10 +14,12 @@ import {
 import { counterService } from './counter.service.js';
 import { AppError } from '../utils/AppError.js';
 import { bmi } from '../validators/auth.schema.js';
+import { auditService } from './audit.service.js';
 
-export async function authService({ db, models, env, mail }) {
+export async function authService({ db, models, env, mail, progress }) {
   const { User, Profile, Pending, Session, Refresh } = models;
   const counters = counterService(models, env.CODE_SECRET);
+  const audit = auditService(models);
   const dummyHash = await hashPassword(opaque());
   const badCode = () =>
     new AppError(
@@ -51,6 +53,7 @@ export async function authService({ db, models, env, mail }) {
         color: 0,
         requestedMembership: profile.requestedMembership,
         rateCategory: profile.rateCategory,
+        profileVersion: profile.version,
       },
     };
   }
@@ -239,6 +242,24 @@ export async function authService({ db, models, env, mail }) {
           { transaction },
         );
         const tokens = await sessionFor(user, csrf, transaction);
+        await progress.record(
+          user,
+          id,
+          {
+            metric: 'Weight',
+            value: profileData.weight,
+            date: new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'Asia/Manila',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            }).format(new Date()),
+            notes: 'Starting weight from registration.',
+          },
+          transaction,
+          'profile',
+        );
+        await audit(user, 'account.created', 'member', user.id, {}, transaction);
         await challenge.destroy({ transaction });
         return { user: serialize(user, profile), tokens };
       });
@@ -263,6 +284,7 @@ export async function authService({ db, models, env, mail }) {
         const profile = await Profile.findByPk(user.id, { transaction });
         if (!profile && user.role !== 'admin') return { error: badLogin() };
         await counters.reset('login', email, transaction);
+        await audit(user, 'account.login', 'account', user.id, {}, transaction);
         return {
           user: serialize(user, profile),
           tokens: await sessionFor(user, csrf, transaction),
@@ -310,8 +332,17 @@ export async function authService({ db, models, env, mail }) {
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
-        profile.encryptedData = encrypt(input, env.FIELD_ENCRYPTION_KEY);
+        const { version, ...values } = input;
+        if (version && version !== profile.version)
+          throw new AppError(
+            409,
+            'Your profile changed. Reload the saved details before saving again.',
+          );
+        await progress.profileWeight(current, profile, values, transaction);
+        profile.encryptedData = encrypt(values, env.FIELD_ENCRYPTION_KEY);
+        profile.version++;
         await profile.save({ transaction });
+        await audit(current, 'profile.updated', 'member', user.id, {}, transaction);
         return serialize(current, profile);
       });
     },
@@ -369,9 +400,11 @@ export async function authService({ db, models, env, mail }) {
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
-        if (session && equal(session.csrfHash, digest(csrf))) {
+        if (session && !session.revokedAt && equal(session.csrfHash, digest(csrf))) {
           session.revokedAt = new Date();
           await session.save({ transaction });
+          const user = await User.findByPk(session.userId, { transaction });
+          if (user) await audit(user, 'account.logout', 'account', user.id, {}, transaction);
         }
       });
     },

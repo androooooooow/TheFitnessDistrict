@@ -59,7 +59,10 @@ export const verifySchema = z.strictObject({
   code: z.string().regex(/^\d{6}$/, 'Enter the six-digit code.'),
 });
 export const resendSchema = z.strictObject({ challengeId: z.uuid() });
-export const profileSchema = z.strictObject(profileFields);
+export const profileSchema = z.strictObject({
+  ...profileFields,
+  version: z.number().int().positive().optional(),
+});
 export function bmi(weight, height) {
   return Number((weight / (height / 100) ** 2).toFixed(1));
 }

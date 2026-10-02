@@ -9,6 +9,12 @@ import { AppError } from './utils/AppError.js';
 import { authService } from './services/auth.service.js';
 import { authController } from './controllers/auth.controller.js';
 import { authRoutes, meRoutes } from './routes/auth.routes.js';
+import { gymService } from './services/gym.service.js';
+import { gymController } from './controllers/gym.controller.js';
+import { gymRoutes } from './routes/gym.routes.js';
+import { progressService } from './services/progress.service.js';
+import { progressController } from './controllers/progress.controller.js';
+import { progressRoutes } from './routes/progress.routes.js';
 export async function createApp({ db, models, env, mail, rateLimits = true }) {
   if (!rateLimits && env.NODE_ENV !== 'test')
     throw new Error('Rate limits can only be disabled by integration tests.');
@@ -48,12 +54,19 @@ export async function createApp({ db, models, env, mail, rateLimits = true }) {
   });
   app.use(express.json({ limit: '16kb', strict: true }));
   app.use(cookieParser());
-  const service = await authService({ db, models, env, mail });
+  const progress = progressService({ db, models, env });
+  const service = await authService({ db, models, env, mail, progress });
   const controller = authController(service, env);
   const csrf = csrfMiddleware(env);
   app.get('/api/v1/health', (req, res) => res.json({ status: 'ok' }));
   app.use('/api/v1/auth', authRoutes({ service, controller, csrf, rateLimits }));
   app.use('/api/v1/me', meRoutes({ service, controller, csrf }));
+  const gym = gymService({ db, models, env, progress });
+  app.use(
+    '/api/v1/gym',
+    progressRoutes({ auth: service, controller: progressController(progress), csrf }),
+  );
+  app.use('/api/v1/gym', gymRoutes({ service, controller: gymController(gym), csrf, rateLimits }));
   app.use((req, res, next) => next(new AppError(404, 'Endpoint not found.')));
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
@@ -68,20 +81,18 @@ export async function createApp({ db, models, env, mail, rateLimits = true }) {
     if (status === 500)
       console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId }));
     if (error.retryAfter) res.set('Retry-After', String(error.retryAfter));
-    res
-      .status(status)
-      .json({
-        message: known
-          ? error.message
-          : status === 400
-            ? 'Send valid JSON.'
-            : status === 413
-              ? 'Request is too large.'
-              : 'Something went wrong. Please try again.',
-        ...(known && error.fields ? { fields: error.fields } : {}),
-        ...(known && error.challengeId ? { challengeId: error.challengeId } : {}),
-        requestId: req.requestId,
-      });
+    res.status(status).json({
+      message: known
+        ? error.message
+        : status === 400
+          ? 'Send valid JSON.'
+          : status === 413
+            ? 'Request is too large.'
+            : 'Something went wrong. Please try again.',
+      ...(known && error.fields ? { fields: error.fields } : {}),
+      ...(known && error.challengeId ? { challengeId: error.challengeId } : {}),
+      requestId: req.requestId,
+    });
   });
   return app;
 }

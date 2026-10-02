@@ -1,8 +1,8 @@
 # The Fit District — Fitness Hub frontend
 
-React + Vite + Tailwind CSS, with React Router, Lucide icons, and locally generated member QR cards. Light UI with orange accents, responsive admin/user layouts, sample members, and Manila-local dates.
+React + Vite + Tailwind CSS, with React Router, Lucide icons, rotating gym QR display, and camera/photo QR scanning. Light UI with orange accents, responsive admin/user layouts, and Manila-local dates.
 
-The supplied Fit District logo is stored in `public/branding/fit-district-logo.png` and shared across the sidebar, account pages, and not-found page. The theme uses warm orange and charcoal to match the logo.
+The supplied Fit District logo is stored in `public/branding/fit-district-logo.png` and shared across the landing page, sidebar, account pages, and not-found page. The theme uses warm orange and charcoal to match the logo.
 
 ## Run
 
@@ -15,25 +15,27 @@ Open `http://127.0.0.1:5173`. The development server listens on the local comput
 
 ## Included
 
-- Admin overview: live counts derived from sample/local records, attendance chart, membership mix, recent visits, and activation/expiry attention list.
+- Public landing page at `/`: responsive welcome page, signup steps, gym features, student/non-student rate switch, membership cards, daily rates, and FAQs. Choosing a membership preselects its plan/category on registration. Signed-in members can return to their dashboard from the page.
+- Admin overview: counts derived from the loaded gym records, attendance chart, membership mix, recent visits, and activation/expiry attention list.
 - Members: search, status filters, pagination, new member form, profile details, access history, suspend/resume.
 - Memberships: the supplied poster’s student/non-student rates for 1, 3, 6, and 12 calendar months and single-admission daily passes. Daily entry is 7 AM–before noon or noon onwards; exactly noon uses the afternoon rate, with times in Asia/Manila. The 3/6/12-month plans include a free T-shirt. Activation stores the selected category, entry slot, and listed counter rate as access details; payment processing remains outside the app. Replaced access is retained in history. Existing preview ten-session packs remain readable and usable but cannot be newly activated. This first preview supports one current access per member; scheduled renewals and multiple concurrent grants are backend integration work.
-- Attendance: member search/keyboard-scanner ID entry, time-in/time-out, open visits, date filters, local duplicate-check-in prevention, and session deduction on check-in only.
-- Progress: weight, bench press, waist, metric charts, goals, dated notes, and editing rules for member-authored entries. Admin can select any member and see both admin- and member-recorded entries. A Progress link in the membership table opens that member directly; users see their own entries.
+- Attendance: admin rotating gym QR, automatic visit refresh, paginated history and date filters. Users scan on My attendance using the camera or a current QR photo; server transactions prevent duplicate visits and repeated daily-pass deductions. Admin has no manual attendance controls.
+- Audit log: admin-only, filterable, paginated records for account, membership, and QR attendance activity.
+- Progress: persistent weight, bench press, and waist journals, metric charts, goals, dated notes, and server-checked editing permissions. Admin can select a member and see both admin- and member-recorded entries. A Progress link in the membership table opens that member directly; users see their own entries. Journal history is paginated, charts show the latest 200 entries, and metric summaries use the full history.
 - Reports: period counts, unique visitors, completed-visit duration averages, unresolved visits, and CSV export.
-- User dashboard: own membership, visits, progress, editable profile, and member QR card.
+- User dashboard: own membership details, visits, progress screens, and editable profile. The profile saves all seven allowed fields, shows field validation errors and a BMI preview, preserves unsaved edits during background refreshes, and rejects stale saves. Latest weight entries update profile/BMI; saving a different profile weight adds a dated journal entry. Personal member QR cards have been removed.
 - Connected account screens: required signup/profile fields, email-code verification before creating an account, automatic sign-in after verification, real password login/logout, and editable profile with BMI. Google OAuth is a future backend phase.
 - Settings: gym details and confirmation before restoring sample data.
 
 ## Preview boundary
 
-Real authentication is the default. Configure and start [the backend](../Backend/README.md) first; Vite proxies `/api` to `127.0.0.1:3001`. Authentication uses server-issued HttpOnly cookies, and real accounts cannot switch roles. Profile data persists in PostgreSQL. Preferred membership is saved but remains pending counter payment and admin activation. Gym attendance, membership activation, progress, reports, and settings APIs are upcoming; their mutations are disabled for real accounts.
+Real authentication is the default. Configure and start [the backend](../Backend/README.md) first, applying all three migrations; Vite proxies `/api` to `127.0.0.1:3001`. Authentication uses server-issued HttpOnly cookies, and real accounts cannot switch roles. Profiles, progress/goals, membership access/history, QR attendance, and audit logs persist in PostgreSQL. Preferred membership remains pending until admin confirms counter payment. Live members register with email verification; Add member is available only in sample mode. Settings still require their backend phase. Reports and overview summarize the loaded snapshot, limited to 1,000 members/recent visits; attendance and progress journals have complete server pagination.
 
 For exploring the earlier sample gym dashboards, explicitly set `VITE_ENABLE_PREVIEW=true` in `.env.local` and restart Vite. This mode uses localStorage/sessionStorage and fictional sample data; the role selector is only a UI preview and grants no backend permissions. Real signup/login screens still require the backend. Keep preview mode off for production.
 
 Local mutations are separate pure functions in `src/lib/domain.js`, with shared state in `src/context/GymContext.jsx`. Replace their persistence/actions with `/api/v1` integrations when building the backend. Client checks improve the preview but cannot enforce real access, prevent concurrent server transactions, or secure stored data.
 
-Expiry dates are exclusive at midnight Asia/Manila. New monthly plans use calendar months, clamping to the final day for shorter months. A daily pass permits one admission in its selected entry window and can be checked out after that window or expiry. A previous preview session pack deducts one session per successful visit; returning after check-out consumes another visit. Existing saved access dates/balances and records are preserved; new rate details are recorded on activation/renewal. The preview currently tracks the selected active access; the backend will support selecting among multiple eligible access grants. Member card QR codes encode the displayed member ID, not an admission credential.
+Expiry dates are exclusive at midnight Asia/Manila. Monthly plans use calendar months, clamping to the final day for shorter months. A daily pass permits one admission in its selected entry window and can be timed out after that window or expiry. One current access is supported, with previous access preserved in history. Gym QR tokens expire after 90 seconds and refresh every minute; they become invalid when the issuing admin logs out. Camera scanning requires HTTPS on phones or localhost for development. Photos are decoded locally; only the signed attendance token is submitted to the backend.
 
 ## Structure
 
@@ -49,4 +51,4 @@ src/
 tests/            domain behavior tests
 ```
 
-Account session state and own-profile persistence are connected. Integrate the remaining gym actions with server authorization and transactions before using them for real gym operations. Configure the production web host to route client-side URLs to `index.html`, and add the frontend document security headers.
+Account/profile, progress/goals, membership, QR attendance, and audit APIs are connected. Settings, Google OAuth, and deployment remain separate work. Configure the production web host to route client-side URLs to `index.html`, and add frontend document security headers. Keep the admin QR screen open and members signed in on their own devices.
