@@ -19,6 +19,8 @@ Payments are handled at the gym counter. Admin activates or renews access after 
 
 The latest dated weight measurement updates profile weight and BMI. A change to profile weight creates a progress entry. Users access their own records; admin can view member records.
 
+Member lists, membership access, attendance, progress journals, audit logs, and daily reports display **10 records per page**, with Previous/Next controls and record ranges.
+
 ## Technology
 
 - **PostgreSQL** for persistent data, with Sequelize and versioned migrations.

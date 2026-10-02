@@ -14,6 +14,8 @@ import {
   dateLabel,
 } from '../../components/UI';
 import { AccessModal } from '../../components/Forms';
+import Pagination from '../../components/Pagination';
+import { PAGE_SIZE, pagination } from '../../lib/pagination';
 
 export default function Memberships() {
   const { state } = useGym();
@@ -21,6 +23,7 @@ export default function Memberships() {
   const [activation, setActivation] = useState(params.get('member'));
   const [query, setQuery] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [page, setPage] = useState(0);
   useEffect(() => {
     if (params.get('member')) setActivation(params.get('member'));
   }, [params]);
@@ -30,6 +33,8 @@ export default function Memberships() {
       `${m.name} ${m.code}`.toLowerCase().includes(query.toLowerCase()) &&
       (planFilter === 'all' || m.access?.planId === planFilter),
   );
+  const { page: currentPage, offset } = pagination(filtered.length, page);
+  const shown = filtered.slice(offset, offset + PAGE_SIZE);
   function close() {
     setActivation(null);
     params.delete('member');
@@ -130,14 +135,20 @@ export default function Memberships() {
                 aria-label="Search membership members"
                 placeholder="Find a member or ID..."
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(0);
+                }}
               />
             </div>
             <select
               className="input w-auto"
               aria-label="Filter membership plan"
               value={planFilter}
-              onChange={(e) => setPlanFilter(e.target.value)}
+              onChange={(e) => {
+                setPlanFilter(e.target.value);
+                setPage(0);
+              }}
             >
               <option value="all">All plans</option>
               {plans.map((p) => (
@@ -162,7 +173,7 @@ export default function Memberships() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((m) => (
+              {shown.map((m) => (
                 <tr key={m.id}>
                   <td>
                     <div className="flex items-center gap-2.5">
@@ -221,6 +232,12 @@ export default function Memberships() {
         {!filtered.length && (
           <Empty title="No matching memberships" description="Try another plan or member name." />
         )}
+        <Pagination
+          total={filtered.length}
+          page={currentPage}
+          onPageChange={setPage}
+          label="memberships"
+        />
       </Panel>
       {member && <AccessModal member={member} onClose={close} />}
     </>

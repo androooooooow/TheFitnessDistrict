@@ -5,6 +5,8 @@ import { useGym } from '../../context/GymContext';
 import { localDate } from '../../lib/domain';
 import { api } from '../../lib/api';
 import AttendanceScanner from '../../components/AttendanceScanner';
+import Pagination from '../../components/Pagination';
+import { PAGE_SIZE, pagination } from '../../lib/pagination';
 import {
   PageTitle,
   Panel,
@@ -136,11 +138,17 @@ export default function Attendance({ user = false }) {
     if (!authUser) return;
     const query = new URLSearchParams({
       scope: tab,
-      limit: '25',
-      offset: String(page * 25),
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
       ...(tab === 'today' ? { date: day } : {}),
     });
-    setData(await api(`/gym/attendance?${query}`));
+    const result = await api(`/gym/attendance?${query}`);
+    const validPage = pagination(result.total, page).page;
+    if (validPage !== page) {
+      setPage(validPage);
+      return;
+    }
+    setData(result);
     setError('');
     setLoaded(true);
   }, [authUser?.id, tab, day, page]);
@@ -150,13 +158,18 @@ export default function Attendance({ user = false }) {
     const load = async () => {
       const query = new URLSearchParams({
         scope: tab,
-        limit: '25',
-        offset: String(page * 25),
+        limit: String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
         ...(tab === 'today' ? { date: day } : {}),
       });
       try {
         const result = await api(`/gym/attendance?${query}`);
         if (live) {
+          const validPage = pagination(result.total, page).page;
+          if (validPage !== page) {
+            setPage(validPage);
+            return;
+          }
           setData(result);
           setError('');
           setLoaded(true);
@@ -182,7 +195,10 @@ export default function Attendance({ user = false }) {
     sample = own.filter((v) =>
       tab === 'inside' ? !v.out : tab === 'today' ? localDate(v.in) === day : true,
     );
-  const shown = authUser ? data.visits : sample.slice(page * 25, (page + 1) * 25),
+  const samplePage = pagination(sample.length, page);
+  const shown = authUser
+      ? data.visits
+      : sample.slice(samplePage.offset, samplePage.offset + PAGE_SIZE),
     total = authUser ? data.total : sample.length,
     open = own.find((v) => !v.out);
   return (
@@ -328,23 +344,13 @@ export default function Attendance({ user = false }) {
             description="Your next QR scan will appear here."
           />
         )}
-        <div className="flex items-center justify-between border-t border-line p-4 text-xs text-muted">
-          <span>
-            Page {page + 1} of {Math.max(1, Math.ceil(total / 25))}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" disabled={!page} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={(page + 1) * 25 >= total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          total={total}
+          page={authUser ? page : samplePage.page}
+          onPageChange={setPage}
+          label="visits"
+          disabled={!!authUser && !loaded}
+        />
       </Panel>
       <p className="mt-4 text-[10px] text-muted">
         Times are recorded by the server and displayed in Asia/Manila.

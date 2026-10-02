@@ -93,12 +93,12 @@ Audit logs include verified account creation, successful login/logout, profile c
 | Method | Path under `/api/v1/gym`                                                 | Access                                                                       |
 | ------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | GET    | `/state`                                                                 | Admin gym snapshot / user own records                                        |
-| GET    | `/attendance?scope=today\|inside\|all&date=YYYY-MM-DD&limit=25&offset=0` | Admin all / user own visits                                                  |
+| GET    | `/attendance?scope=today\|inside\|all&date=YYYY-MM-DD&limit=10&offset=0` | Admin all / user own visits                                                  |
 | GET    | `/attendance/qr`                                                         | Admin only                                                                   |
 | POST   | `/attendance/scan`                                                       | User only: `{requestId, token, action: "time-in" or "time-out"}`             |
 | POST   | `/members/:id/access`                                                    | Admin: `{requestId, planId, rateCategory, paymentConfirmed:true, timeSlot?}` |
 | PUT    | `/members/:id/access/status`                                             | Admin: `{status:"active" or "suspended"}`                                    |
-| GET    | `/audit?limit=25&offset=0&action=…&date=YYYY-MM-DD`                      | Admin only                                                                   |
+| GET    | `/audit?limit=10&offset=0&action=…&date=YYYY-MM-DD`                      | Admin only                                                                   |
 
 The isolated PostgreSQL suite verifies authorization, malformed input, counter confirmation, server rates, expiry, QR forgery/expiry/revocation, concurrent scan retries, single-admission daily passes, ownership, and append-only audit storage. Browser QA can use `powershell -File scripts/testPostgres.ps1 -Browser -ApiPort 3002 -FrontendOrigin http://127.0.0.1:5174 -SeedGym` with a separate frontend (`API_PROXY_TARGET=http://127.0.0.1:3002`, port 5174). Its seed refuses every non-test or nonempty database and creates only fictional accounts; no real emails or counter payments occur.
 
@@ -114,9 +114,9 @@ The latest weight by measurement date updates the profile weight and BMI. For en
 
 | Method | Path under `/api/v1/gym`                                  | Body / result                                                                                    |
 | ------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| GET    | `/progress?memberId=UUID&metric=Weight&limit=25&offset=0` | User's own journal / admin-selected member; entries, total, selected metric chart/summary, goals |
+| GET    | `/progress?memberId=UUID&metric=Weight&limit=10&offset=0` | User's own journal / admin-selected member; entries, total, selected metric chart/summary, goals |
 | POST   | `/progress`                                               | `{memberId,requestId,metric,value,date,notes}`                                                   |
 | PUT    | `/progress/:id`                                           | `{metric,value,date,notes,version}`                                                              |
 | POST   | `/goals`                                                  | `{memberId,requestId,metric,target,version?}`                                                    |
 
-The journal paginates the complete history (default 25, maximum 100 per page). Charts show the latest 200 measurements; first/latest/count summaries use the full history. Dashboard snapshots include up to 1,000 recent progress entries across loaded members, while the dedicated progress screen uses the paginated API. Goals capture the latest measurement as their baseline when a target changes, supporting either an increase or decrease. The API suite verifies encryption, ownership, idempotency, edits, profile/BMI synchronization, stale forms, bounded charts, complete summaries, and transaction rollback.
+The journal paginates the complete history (default 10, maximum 100 per page). Charts show the latest 200 measurements; first/latest/count summaries use the full history. Dashboard snapshots include up to 1,000 recent progress entries across loaded members, while the dedicated progress screen uses the paginated API. Goals capture the latest measurement as their baseline when a target changes, supporting either an increase or decrease. The API suite verifies encryption, ownership, idempotency, edits, profile/BMI synchronization, stale forms, bounded charts, complete summaries, and transaction rollback.

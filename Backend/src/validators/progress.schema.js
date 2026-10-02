@@ -55,6 +55,6 @@ export const goalSchema = z
 export const progressListSchema = z.strictObject({
   memberId: z.uuid().optional(),
   metric: metric.default('Weight'),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 });

@@ -22,7 +22,7 @@ const date = z.iso.date();
 export const listSchema = z.strictObject({
   scope: z.enum(['today', 'inside', 'all']).default('today'),
   date: date.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 });
 export const auditSchema = z.strictObject({
@@ -42,7 +42,7 @@ export const auditSchema = z.strictObject({
     ])
     .optional(),
   date: date.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 });
 export const memberIdSchema = z.strictObject({ id: uuid });

@@ -9,7 +9,7 @@ test('live progress, goals and profile use the API even before account state is 
   const server = await createServer({
     configFile: false,
     plugins: [react()],
-    server: { middlewareMode: true, hmr: false },
+    server: { middlewareMode: true, hmr: false, ws: false },
     cacheDir: '.qa/vite-test-cache',
     optimizeDeps: { noDiscovery: true, include: [] },
     appType: 'custom',

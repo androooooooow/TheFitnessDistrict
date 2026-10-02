@@ -15,10 +15,13 @@ import { AttendanceChart, MembershipDonut } from '../../components/Charts';
 import { localDate, addDays, accessStatus } from '../../lib/domain';
 import { downloadCsv } from '../../lib/export';
 import { useGym } from '../../context/GymContext';
+import Pagination from '../../components/Pagination';
+import { PAGE_SIZE, pagination } from '../../lib/pagination';
 
 export default function Reports() {
   const { state, notify } = useGym();
   const [days, setDays] = useState(14);
+  const [page, setPage] = useState(0);
   const start = addDays(localDate(), -days + 1);
   const visits = state.visits.filter((v) => localDate(v.in) >= start);
   const completed = visits.filter((v) => v.out);
@@ -29,6 +32,8 @@ export default function Reports() {
       )
     : 0;
   const dates = [...new Set(visits.map((v) => localDate(v.in)))].sort().reverse();
+  const { page: currentPage, offset } = pagination(dates.length, page);
+  const shownDates = dates.slice(offset, offset + PAGE_SIZE);
   function exportReport() {
     downloadCsv(
       `fitnessdistrict-attendance-${localDate()}.csv`,
@@ -67,7 +72,10 @@ export default function Reports() {
               className="small-select"
               aria-label="Report period"
               value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
+              onChange={(e) => {
+                setDays(Number(e.target.value));
+                setPage(0);
+              }}
             >
               <option value={7}>Last 7 days</option>
               <option value={14}>Last 14 days</option>
@@ -143,7 +151,7 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody>
-              {dates.map((date) => {
+              {shownDates.map((date) => {
                 const daily = visits.filter((v) => localDate(v.in) === date);
                 return (
                   <tr key={date}>
@@ -161,6 +169,7 @@ export default function Reports() {
         {!dates.length && (
           <Empty title="No visits in this period" description="Try a wider date range." />
         )}
+        <Pagination total={dates.length} page={currentPage} onPageChange={setPage} label="days" />
       </Panel>
     </>
   );

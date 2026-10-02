@@ -39,6 +39,8 @@ Expiry dates are exclusive at midnight Asia/Manila. Monthly plans use calendar m
 
 ## Structure
 
+Member lists, membership access, attendance, progress journals, audit logs, and daily reports show **10 records per page**. Searches and filters return to the first page. Reports and charts still calculate totals across their full loaded dataset, and CSV exports include the selected reporting period rather than just the visible page.
+
 ```text
 src/
   components/     shared UI, layout, forms, charts

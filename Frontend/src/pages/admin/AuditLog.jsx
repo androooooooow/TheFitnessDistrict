@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ScrollText, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
+import Pagination from '../../components/Pagination';
+import { PAGE_SIZE, pagination } from '../../lib/pagination';
 import { useGym } from '../../context/GymContext';
 import { localDate } from '../../lib/domain';
 import { PageTitle, Panel, Button, Empty, dateLabel, timeLabel } from '../../components/UI';
@@ -45,14 +47,19 @@ export default function AuditLog() {
     let live = true;
     const load = async () => {
       const query = new URLSearchParams({
-        limit: '25',
-        offset: String(page * 25),
+        limit: String(PAGE_SIZE),
+        offset: String(page * PAGE_SIZE),
         ...(action ? { action } : {}),
         ...(day ? { date: day } : {}),
       });
       try {
         const result = await api(`/gym/audit?${query}`);
         if (live) {
+          const validPage = pagination(result.total, page).page;
+          if (validPage !== page) {
+            setPage(validPage);
+            return;
+          }
           setData(result);
           setError('');
         }
@@ -179,23 +186,13 @@ export default function AuditLog() {
             }
           />
         )}
-        <div className="flex items-center justify-between border-t border-line p-4 text-xs text-muted">
-          <span>
-            Page {page + 1} of {Math.max(1, Math.ceil(data.total / 25))}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" disabled={!page} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={(page + 1) * 25 >= data.total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          total={data.total}
+          page={page}
+          onPageChange={setPage}
+          label="audit entries"
+          disabled={loading}
+        />
       </Panel>
       <p className="mt-4 text-[10px] text-muted">
         Records are read-only. Times are displayed in Asia/Manila.

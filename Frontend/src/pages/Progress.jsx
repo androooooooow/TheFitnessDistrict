@@ -15,6 +15,8 @@ import {
 } from '../components/UI';
 import { ProgressChart } from '../components/Charts';
 import { ProgressModal, GoalModal } from '../components/Forms';
+import Pagination from '../components/Pagination';
+import { PAGE_SIZE, pagination } from '../lib/pagination';
 
 export default function Progress({ user = false }) {
   const { state, userId, authUser, progressRevision } = useGym();
@@ -39,9 +41,14 @@ export default function Progress({ user = false }) {
     const load = async () => {
       try {
         const result = await api(
-          `/gym/progress?${new URLSearchParams({ memberId: member.id, metric, limit: '25', offset: String(page * 25) })}`,
+          `/gym/progress?${new URLSearchParams({ memberId: member.id, metric, limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })}`,
         );
         if (live) {
+          const validPage = pagination(result.total, page).page;
+          if (validPage !== page) {
+            setPage(validPage);
+            return;
+          }
           setData(result);
           setError('');
         }
@@ -65,6 +72,11 @@ export default function Progress({ user = false }) {
     .filter((p) => p.memberId === member.id)
     .sort((a, b) => a.date.localeCompare(b.date));
   const selectedEntries = all.filter((p) => p.metric === metric);
+  const journalTotal = authUser ? (data?.total ?? 0) : all.length;
+  const journalPage = pagination(journalTotal, page);
+  const journalEntries = authUser
+    ? data?.entries || []
+    : [...all].reverse().slice(journalPage.offset, journalPage.offset + PAGE_SIZE);
   const chart = authUser ? data?.chart || [] : selectedEntries;
   const entries = period === 'all' ? chart : chart.slice(-4);
   const latest = authUser ? data?.summary.latest : selectedEntries.at(-1);
@@ -260,7 +272,7 @@ export default function Progress({ user = false }) {
               </tr>
             </thead>
             <tbody>
-              {(authUser ? data?.entries || [] : [...all].reverse()).map((p) => (
+              {journalEntries.map((p) => (
                 <tr key={p.id}>
                   <td>{dateLabel(p.date)}</td>
                   <td>{p.metric}</td>
@@ -301,25 +313,13 @@ export default function Progress({ user = false }) {
             }
           />
         )}
-        {authUser && data && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4 text-xs text-muted">
-            <span>
-              {data.total} measurements · Page {page + 1} of{' '}
-              {Math.max(1, Math.ceil(data.total / 25))}
-            </span>
-            <div className="flex gap-2">
-              <Button variant="secondary" disabled={!page} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={(page + 1) * 25 >= data.total}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+        {(!authUser || data) && (
+          <Pagination
+            total={journalTotal}
+            page={journalPage.page}
+            onPageChange={setPage}
+            label="measurements"
+          />
         )}
       </Panel>
       {(modal || editing) && (

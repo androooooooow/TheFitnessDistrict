@@ -3,8 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
-  ChevronLeft,
-  ChevronRight,
   ArrowUpRight,
   Mail,
   Phone,
@@ -25,6 +23,8 @@ import {
   dateLabel,
 } from '../../components/UI';
 import { MemberCreate, AccessModal } from '../../components/Forms';
+import Pagination from '../../components/Pagination';
+import { PAGE_SIZE, pagination } from '../../lib/pagination';
 
 export default function Members() {
   const { state, suspend, previewEnabled } = useGym();
@@ -37,6 +37,7 @@ export default function Members() {
   const [activateId, setActivateId] = useState(null);
   useEffect(() => {
     setSearch(params.get('q') || '');
+    setPage(0);
     if (params.get('member')) setDetailId(params.get('member'));
   }, [params]);
   const filtered = state.members.filter(
@@ -45,9 +46,8 @@ export default function Members() {
       (filter === 'All members' ||
         (filter === 'Needs attention' ? accessStatus(m) !== 'Active' : accessStatus(m) === filter)),
   );
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 8));
-  const currentPage = Math.min(page, pageCount - 1);
-  const shown = filtered.slice(currentPage * 8, currentPage * 8 + 8);
+  const { page: currentPage, offset } = pagination(filtered.length, page);
+  const shown = filtered.slice(offset, offset + PAGE_SIZE);
   const detail = state.members.find((m) => m.id === detailId);
   const activating = state.members.find((m) => m.id === activateId);
   function closeDetail() {
@@ -182,35 +182,12 @@ export default function Members() {
             description="Try a different name, member ID, or filter."
           />
         )}
-        <div className="flex items-center justify-between gap-4 border-t border-line px-5 py-4">
-          <span className="text-[11px] text-muted">
-            {filtered.length
-              ? `${currentPage * 8 + 1}–${Math.min((currentPage + 1) * 8, filtered.length)}`
-              : '0'}{' '}
-            of {filtered.length} members
-          </span>
-          <div className="flex items-center gap-3">
-            <button
-              aria-label="Previous page"
-              className="icon-btn border border-line disabled:opacity-30"
-              disabled={currentPage === 0}
-              onClick={() => setPage(currentPage - 1)}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-[11px] text-muted">
-              Page {currentPage + 1} of {pageCount}
-            </span>
-            <button
-              aria-label="Next page"
-              className="icon-btn border border-line disabled:opacity-30"
-              disabled={currentPage >= pageCount - 1}
-              onClick={() => setPage(currentPage + 1)}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          total={filtered.length}
+          page={currentPage}
+          onPageChange={setPage}
+          label="members"
+        />
       </Panel>
       {create && <MemberCreate onClose={() => setCreate(false)} />}
       {activating && <AccessModal member={activating} onClose={() => setActivateId(null)} />}
